@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Local database and secrets
+*.db
+*.sqlite3
+.env
+
+# Real financial statements — never commit personal account data.
+# (Excluding by extension, not by directory: excluding the directory itself
+# would also hide the .gitkeep files that keep the folder structure in git.)
+/data/imports/**/*.pdf
+/data/imports/**/*.xml
+/data/imports/**/*.csv
+/data/imports/**/*.zip
