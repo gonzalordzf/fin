@@ -393,6 +393,16 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     # Devolución del SAT ("HACIENDA TE DEVUELVE", Tesorería de la
     # Federación). Es dinero que regresa, no ingreso nuevo.
     (r"HACIENDA TE DEVUELVE", "Reembolsos"),
+    # Pagos de una póliza de seguro (confirmado por el usuario). Entran
+    # como Reembolsos y no como ingreso: el análisis de ingreso suma solo
+    # Nómina y Fondo de Ahorro, así que esto no infla el ingreso, y como
+    # Reembolsos es categoría INCOME tampoco entra al gasto.
+    (r"\bMETLIFE\b", "Reembolsos"),
+    # Transferencias familiares (confirmado por el usuario: no son ingreso
+    # real). OJO — Daniel Rodríguez Fierro NO es el titular: docs/04-gotchas
+    # advierte justamente que hay personas de apellido Fierro que no son
+    # Gonzalo, así que esto nunca debe tratarse como traspaso propio.
+    (r"DANIEL RODRIGUEZ FIERRO", "Reembolsos"),
 ]
 
 
