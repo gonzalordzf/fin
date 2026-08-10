@@ -47,6 +47,14 @@ export function CashFlowChart({
 
   const plotHeight = PLOT_BOTTOM - PLOT_TOP
   const scaleY = (v: number) => PLOT_BOTTOM - (v / maxAbs) * plotHeight
+  // Bars are diverging from the zero baseline: a category can net negative
+  // in a heavy-reimbursement month (e.g. a large travel refund), so
+  // income/expense aren't guaranteed >= 0 — only "y going up from 0" is.
+  const barRect = (v: number) => {
+    const y0 = scaleY(0)
+    const y1 = scaleY(v)
+    return { y: Math.min(y0, y1), height: Math.abs(y1 - y0) }
+  }
 
   const width = Math.max(months.length * GROUP_WIDTH + 40, 480)
 
@@ -112,17 +120,17 @@ export function CashFlowChart({
               >
                 <rect
                   x={gx + GROUP_WIDTH / 2 - BAR_WIDTH - BAR_GAP / 2}
-                  y={scaleY(row.income)}
+                  y={barRect(row.income).y}
                   width={BAR_WIDTH}
-                  height={PLOT_BOTTOM - scaleY(row.income)}
+                  height={barRect(row.income).height}
                   rx={3}
                   fill="var(--series-1)"
                 />
                 <rect
                   x={gx + GROUP_WIDTH / 2 + BAR_GAP / 2}
-                  y={scaleY(row.total_expense)}
+                  y={barRect(row.total_expense).y}
                   width={BAR_WIDTH}
-                  height={PLOT_BOTTOM - scaleY(row.total_expense)}
+                  height={barRect(row.total_expense).height}
                   rx={3}
                   fill="var(--series-2)"
                 />
