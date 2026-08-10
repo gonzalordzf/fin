@@ -427,7 +427,9 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     (r"AMZN MKTP|PALACIODEHIERRO|MERCADO LIBRE|TEMU\.COM", "Compras"),
     # Salud — hospitales, laboratorios y consultorios reales
     (r"HOSPITAL ANGELES|LAB MEDICO DEL CHOPO|MED CENTRO DE FISIOTERA", "Salud"),
-    (r"DR GABRIEL ARRIOLA", "Salud"),
+    # Sin el prefijo "D": AMEX trunca a veces a "R GABRIEL ARRIOLA L" en el
+    # mismo doctor — confirmado por nombre y monto en el mismo rango.
+    (r"GABRIEL ARRIOLA", "Salud"),
     # Gasolineras
     (r"GASOLINERA|PITS GAS EST", "Transporte"),
     # Restaurantes (bloque tardío: comercios confirmados al ampliar el
@@ -509,6 +511,57 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     # Alimentos y Supermercado
     (r"\bLA COMER\b", "Alimentos y Supermercado"),
     (r"TIENDA INGLESA", "Alimentos y Supermercado"),  # supermercado uruguayo
+    # Tercer lote (offset 70-140): más restaurantes por nombre propio,
+    # varios en las mismas ciudades de viaje ya vistas (Breckenridge/South
+    # Lake Tahoe = viaje de esquí, San Miguel de Allende, Cartagena).
+    (r"TST\* JACKS WIFE FREDA", "Restaurantes y Café"),  # Nueva York
+    (r"TEN MILE STATION", "Restaurantes y Café"),  # lodge de esquí, Breckenridge
+    (r"TST\* LARTUSI", "Restaurantes y Café"),  # Nueva York
+    (r"CANTINHO PORTO", "Restaurantes y Café"),
+    (r"ROJOS TAVERN", "Restaurantes y Café"),  # South Lake Tahoe, viaje de esquí
+    (r"BARCELONA RINO", "Restaurantes y Café"),  # Denver
+    (r"BALTHAZAR RESTAURANT", "Restaurantes y Café"),  # Nueva York
+    (r"LGS PRIME STEAKHOUSE", "Restaurantes y Café"),  # La Quinta
+    (r"LA TERRAZA CHA CHA CHA", "Restaurantes y Café"),
+    (r"ALQUIMICO CARTAGENA", "Restaurantes y Café"),  # cargo real, no el reembolso del viaje de dic-2023 (ver _colombia_trip_match)
+    (r"EL TIZONCITO", "Restaurantes y Café"),  # taquería, Cholula
+    (r"\bLA VINERIA\b", "Restaurantes y Café"),
+    (r"LA UNICA SMA", "Restaurantes y Café"),  # San Miguel de Allende
+    (r"\bKAZUYA\b", "Restaurantes y Café"),  # Huixquilucan
+    (r"ZTL\*ODETTE CUISINE", "Restaurantes y Café"),
+    (r"\bTONCHIN\b", "Restaurantes y Café"),  # ramen CDMX, cubre variantes BILLPOCKET y con sucursal
+    (r"BILLPOCKET\*FIERA ROOFTO", "Restaurantes y Café"),
+    (r"CANTON MEXICALI", "Restaurantes y Café"),  # restaurante cantonés
+    (r"SALSEIROS DO MAR", "Restaurantes y Café"),  # A Coruña
+    (r"\bTRASTEVERE\b", "Restaurantes y Café"),  # restaurante italiano, Mexico
+    (r"AROMI SAPORI", "Restaurantes y Café"),
+    (r"NETPAY\*NEVERIA ROXY", "Restaurantes y Café"),  # nevería
+    (r"MERCADOPAGO\*INSIDECAFE", "Restaurantes y Café"),  # San Miguel de Allende
+    # Entretenimiento
+    (r"\bOCESA\b", "Entretenimiento"),  # ticketera de eventos, México
+    (r"LYRIC THEATRE", "Entretenimiento"),  # Nueva York
+    (r"PLAYTOMIC\.IO", "Entretenimiento"),  # reservas de pádel
+    # Salud
+    (r"LAB MED POLANCO", "Salud"),
+    (r"ORTOPEDISTAS ABC MEXICO", "Salud"),
+    (r"DUANE READE", "Salud"),  # cadena de farmacias, Nueva York
+    # Impuestos y Comisiones Bancarias
+    (r"CARGO POR PAGO TARD", "Impuestos y Comisiones Bancarias"),  # cargo por pago tardío, AMEX
+    # Viajes
+    (r"\bMELIA\b", "Viajes"),  # cadena hotelera Meliá
+    (r"SNOW\.COM/VAIL RESORTS", "Viajes"),
+    # Compras
+    (r"\bMUJI\b", "Compras"),
+    (r"COLUMBIA BRANDS USA", "Compras"),  # marca de ropa outdoor
+    (r"\bTARGET\b", "Compras"),
+    (r"BILLABONG", "Compras"),  # marca de ropa surf
+    (r"JOYERIA TRESSOR", "Compras"),
+    (r"LPO MERCHANDISING", "Compras"),
+    # Alimentos y Supermercado
+    (r"BEVERAGES & MORE", "Alimentos y Supermercado"),
+    (r"ULTRAMARINOS DE FRAN", "Alimentos y Supermercado"),
+    # Cuidado Personal
+    (r"KOTI WELLNESS", "Cuidado Personal"),
 ]
 
 
