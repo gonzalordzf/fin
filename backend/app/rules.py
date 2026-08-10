@@ -91,12 +91,28 @@ INCOME_RULES: list[tuple[str, str]] = [
 # distinguish from one-off personal transfers.
 KNOWN_PERSON_RULES: list[tuple[str, str]] = [
     (r"REMIS", "Salud"),  # Begoña Remis — psicóloga, recurring
-    (r"BATIZ", "Vivienda"),  # Ceci Batiz — renta del depto actual, recurring
-    # Arrendador anterior (2023-2024), $15,450/mes con memo "Renta"/"La
-    # fija" — confirmado en los estados reales de ene-mar 2023. Sin esta
-    # regla, 2023 reportaba $2,237/mes de vivienda, cifra imposible que
-    # delató el hueco.
+    # Renta del depto actual. El patrón es el apellido, no el nombre
+    # completo, a propósito: hasta ~2025 el depósito iba al papá de Ceci
+    # (fallecido desde entonces) y después a ella — dos personas distintas,
+    # el mismo hecho económico, ambas cubiertas por el apellido.
+    (r"BATIZ", "Vivienda"),
+    # Roomie de 2023-2024, NO el arrendador: él le pagaba al dueño y
+    # Gonzalo le transfería su parte ($15,450/mes, memo "Renta"/"La fija",
+    # confirmado en los estados reales de ene-mar 2023). El efecto
+    # económico es idéntico —es su costo de vivienda— pero la mecánica
+    # importa para no buscar un contrato de arrendamiento que no existe.
+    # Sin esta regla, 2023 reportaba $2,237/mes de vivienda, cifra
+    # imposible que fue la que delató el hueco.
     (r"ARREOLA", "Vivienda"),
+    # Roomies de 2023-2024. Van a Vivienda sin importar el signo, igual que
+    # RENT_PATTERNS abajo: en unos meses depositaban su parte y en otros
+    # Gonzalo les transfería a ellos, según quién le pagara al dueño ese
+    # mes. Como la categoría netea, la dirección deja de importar y el
+    # resultado es el costo real de vivienda en cualquiera de los dos casos.
+    # Nombre completo, no solo el apellido: "GONZALEZ" y "JOSE MANUEL" son
+    # demasiado comunes para machear solos sin arriesgar falsos positivos.
+    (r"EUGENIA\s+GONZALEZ", "Vivienda"),
+    (r"MARENTES", "Vivienda"),
     (r"CASTILLO MEADE", "Regalos"),  # Maria Luis Castillo Meade — regalo de boda, one-off
     # Full name, not just "RAMOS": a "Daniel Ramos" appears unrelated in
     # the World Cup ticket reimbursement thread — matching on the surname
