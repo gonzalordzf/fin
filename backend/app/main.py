@@ -37,9 +37,15 @@ DATA_IMPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "imp
 # are per-contract (AAU94801/AAU94802) and the importer resolves the target
 # sub-account from the file's own contents, so it's triggered the same way
 # as everything else — just note it isn't a 1:1 folder-to-account mapping.
+#
+# AMEX is the one account with two source formats landing in the same
+# folder: recent history as CSV exports, anything older than AMEX's export
+# tool covers as PDF statements (app/parsers/amex_pdf.py) — mapped here by
+# extension to their respective importer functions instead of a single
+# (fn, exts) pair like every other account.
 IMPORTERS = {
     "BBVA": (bbva.import_bbva_statement, {".pdf"}),
-    "AMEX": (amex.import_amex_csv, {".csv"}),
+    "AMEX": {".csv": amex.import_amex_csv, ".pdf": amex.import_amex_pdf_statement},
     "GBM": (gbm.import_gbm_statement, {".xml"}),
     "Bitso": (bitso.import_bitso_report, {".csv"}),
     "Revolut": (revolut.import_revolut_statement, {".pdf"}),
@@ -64,14 +70,20 @@ def trigger_import(account: str) -> dict:
     if account not in IMPORTERS:
         raise HTTPException(404, f"Unknown account {account!r}. Known: {list(IMPORTERS)}")
 
-    importer_fn, extensions = IMPORTERS[account]
+    mapping = IMPORTERS[account]
+    if isinstance(mapping, dict):
+        ext_to_fn = mapping
+    else:
+        importer_fn, extensions = mapping
+        ext_to_fn = {ext: importer_fn for ext in extensions}
     folder = DATA_IMPORTS_DIR / account
     if not folder.exists():
         raise HTTPException(404, f"No import folder at {folder}")
 
     details = []
     for path in sorted(folder.iterdir()):
-        if path.suffix.lower() not in extensions:
+        importer_fn = ext_to_fn.get(path.suffix.lower())
+        if importer_fn is None:
             continue
         try:
             result = importer_fn(str(path))
