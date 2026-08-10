@@ -91,13 +91,28 @@ INCOME_RULES: list[tuple[str, str]] = [
 # distinguish from one-off personal transfers.
 KNOWN_PERSON_RULES: list[tuple[str, str]] = [
     (r"REMIS", "Salud"),  # Begoña Remis — psicóloga, recurring
-    (r"BATIZ", "Vivienda"),  # Ceci Batiz — renta del depto, recurring
+    (r"BATIZ", "Vivienda"),  # Ceci Batiz — renta del depto actual, recurring
+    # Arrendador anterior (2023-2024), $15,450/mes con memo "Renta"/"La
+    # fija" — confirmado en los estados reales de ene-mar 2023. Sin esta
+    # regla, 2023 reportaba $2,237/mes de vivienda, cifra imposible que
+    # delató el hueco.
+    (r"ARREOLA", "Vivienda"),
     (r"CASTILLO MEADE", "Regalos"),  # Maria Luis Castillo Meade — regalo de boda, one-off
     # Full name, not just "RAMOS": a "Daniel Ramos" appears unrelated in
     # the World Cup ticket reimbursement thread — matching on the surname
     # alone would collide with that real person.
     (r"CLARA RAMOS", "Vivienda"),  # servicio de limpieza doméstica, recurring
 ]
+
+# Renta: cubre los dos lados del mismo hecho económico y por eso va a
+# "Vivienda" sin importar el signo — la renta que Gonzalo paga (salida) y
+# lo que los roomies le depositan por su parte (entrada, memos tipo "RENTA
+# DANIEL MARZO 2026", "renta roy", "RENTA JULIO"). Netear ambos lados es
+# el único costo de vivienda que significa algo: el bruto sobreestima
+# ~$17,400/mes desde que hay roomies. Requiere que spending-by-category
+# sume el neto de la categoría y no solo los cargos — ver main.py.
+RENT_PATTERNS: list[str] = [r"\bRENTA\b"]
+_RENT_CATEGORY = "Vivienda"
 
 # World Cup 2026: ticket purchases (mostly from Federación Mexicana de
 # Fútbol) and reimbursements from the friend group that paid Gonzalo back.
@@ -254,6 +269,10 @@ def classify_merchants(session: Session) -> int:
             category_name = _first_match(haystack, INCOME_RULES)
         if category_name is None:
             category_name = _first_match(haystack, KNOWN_PERSON_RULES)
+        if category_name is None and any(
+            re.search(p, haystack, re.IGNORECASE) for p in RENT_PATTERNS
+        ):
+            category_name = _RENT_CATEGORY
         if category_name is None:
             category_name = _first_match(haystack, MERCHANT_RULES)
 

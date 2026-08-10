@@ -164,12 +164,25 @@ def spending_by_category(
     date_from: datetime.date | None = None,
     date_to: datetime.date | None = None,
 ) -> list[dict]:
-    """Sums expense (negative-amount) transactions by category, excluding
-    self-transfers (kind=TRANSFER) — a movement between the user's own
-    accounts is neither spending nor income, per docs/04-gotchas.md. Most
-    transactions have no rule-based category yet, so today most of the
-    total will be 'Sin categoría' — this reflects real project state, not
-    a bug."""
+    """Nets every transaction in each EXPENSE category — inflows included,
+    not just charges — and reports the result as spending. Self-transfers
+    (kind=TRANSFER) are excluded entirely: a movement between the user's
+    own accounts is neither spending nor income, per docs/04-gotchas.md.
+
+    The netting is the whole point and replaced an earlier `amount < 0`
+    filter that was silently wrong for any category where money legitimately
+    comes back. Two real cases: 'Mundial' holds both the World Cup tickets
+    bought for a group of friends and their SPEI reimbursements ($1,035,647
+    out vs $898,245 back), and 'Vivienda' holds both the rent paid and the
+    roommates' share of it (~$17,400/mo back). Summing only the charges
+    reported the gross outflow as if it were all personal spend — off by
+    $890k on Mundial alone. A category whose inflows exceed its outflows
+    now correctly reports a negative "amount", i.e. a net inflow.
+
+    'Sin categoría' is deliberately NOT netted (still charges-only): with no
+    category there's no way to tell a refund from unrelated income, and
+    netting salary-like inflows against it would understate what's left to
+    review."""
     with get_session() as session:
 
         def date_filtered(q):
@@ -182,7 +195,7 @@ def spending_by_category(
         categorized = date_filtered(
             session.query(Category.name, Category.nature, func.sum(Transaction.amount))
             .join(Transaction, Transaction.category_id == Category.id)
-            .filter(Transaction.amount < 0, Category.kind != CategoryKind.TRANSFER)
+            .filter(Category.kind == CategoryKind.EXPENSE)
         ).group_by(Category.name, Category.nature)
 
         uncategorized_total = date_filtered(
