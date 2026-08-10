@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import func
 
+from app.classify import classify_transfers
 from app.db import get_session, init_db
 from app.importers import amex, balagan, bbva, bitso, gbm, optimax, revolut, shareworks
 from app.parsers import balagan as balagan_parser
@@ -20,6 +21,7 @@ from app.models import (
     Account,
     AlternativeInvestmentEntry,
     Category,
+    CategoryKind,
     EquityCompensationEntry,
     HoldingSnapshot,
     Transaction,
@@ -79,6 +81,16 @@ def trigger_import(account: str) -> dict:
     return {"account": account, "files_seen": len(details), "details": details}
 
 
+@app.post("/classify")
+def trigger_classify() -> dict:
+    """Runs rule-based classification (currently: self-transfer detection by
+    titular/RFC) over every uncategorized transaction. Idempotent and safe
+    to call repeatedly, including after new imports."""
+    with get_session() as session:
+        matched = classify_transfers(session)
+    return {"transfers_classified": matched}
+
+
 @app.get("/accounts")
 def list_accounts() -> list[dict]:
     with get_session() as session:
@@ -136,9 +148,12 @@ def spending_by_category(
     date_from: datetime.date | None = None,
     date_to: datetime.date | None = None,
 ) -> list[dict]:
-    """Sums expense (negative-amount) transactions by category. No
-    auto-categorization is wired up yet, so today every result will be
-    'Sin categoría' — this reflects real project state, not a bug."""
+    """Sums expense (negative-amount) transactions by category, excluding
+    self-transfers (kind=TRANSFER) — a movement between the user's own
+    accounts is neither spending nor income, per docs/04-gotchas.md. Most
+    transactions have no rule-based category yet, so today most of the
+    total will be 'Sin categoría' — this reflects real project state, not
+    a bug."""
     with get_session() as session:
 
         def date_filtered(q):
@@ -151,7 +166,7 @@ def spending_by_category(
         categorized = date_filtered(
             session.query(Category.name, func.sum(Transaction.amount))
             .join(Transaction, Transaction.category_id == Category.id)
-            .filter(Transaction.amount < 0)
+            .filter(Transaction.amount < 0, Category.kind != CategoryKind.TRANSFER)
         ).group_by(Category.name)
 
         uncategorized_total = date_filtered(
