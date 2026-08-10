@@ -6,12 +6,20 @@ already standardized per the brief). Two sections matter:
 1. "Resumen de Saldos de Inversión": one row per sub-portfolio (093BON
    Bono de Fidelidad, 093CDD Dinámico Dólares Comprometido, 093DDO
    Dinámico Dólares Inicial) — Aportaciones Acumuladas, Unidades,
-   Valor de la Unidad, Monto (= Unidades × Valor, verified). This is
-   the point-in-time valuation -> one HoldingSnapshot per sub-portfolio.
+   Valor de la Unidad, Monto. This is the point-in-time valuation -> one
+   HoldingSnapshot per sub-portfolio.
 2. "Detalle de Aportaciones": per sub-portfolio, the contribution
    transactions posted that period (often zero — Bono de Fidelidad and
    one of the Dólares funds typically have none). Summed per
    sub-portfolio into net_contribution_period.
+
+parse_optimax_statement() checks Monto against Unidades × Valor de la
+Unidad for each sub-portfolio before returning. Tolerance is 5 cents, not
+1 — verified against a real statement that the printed Monto is rounded
+independently from a more precise internal figure, so multiplying the two
+4-decimal displayed numbers can legitimately land a cent or two off
+(766.7281 × 237.5126 = 182,107.5845 vs printed 182,107.56) without any
+extraction error.
 """
 
 from __future__ import annotations
@@ -109,6 +117,19 @@ def _parse_contributions(lines: list[str], portfolios: dict[str, OptimaxSubPortf
             current.net_contribution_period += amount
 
 
+def _validate(portfolios: dict[str, OptimaxSubPortfolio]) -> None:
+    errors = []
+    for p in portfolios.values():
+        computed = round(p.units * p.unit_value, 2)
+        if abs(computed - p.market_value) > 0.05:
+            errors.append(f"{p.code} {p.name}: units*unit_value={computed} vs printed Monto={p.market_value}")
+    if errors:
+        raise ValueError(
+            "Optimax statement does not reconcile Monto against Unidades x Valor de la Unidad: "
+            + "; ".join(errors)
+        )
+
+
 def parse_optimax_statement(path: str) -> OptimaxStatement:
     with pdfplumber.open(path) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
@@ -117,6 +138,7 @@ def parse_optimax_statement(path: str) -> OptimaxStatement:
     period_start, period_end = _parse_period(lines)
     portfolios = _parse_summary(lines)
     _parse_contributions(lines, portfolios)
+    _validate(portfolios)
 
     return OptimaxStatement(
         period_start=period_start,
