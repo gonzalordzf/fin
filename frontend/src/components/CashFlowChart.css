@@ -61,6 +61,11 @@
   stroke-width: 1;
 }
 
+.cashflow__baseline {
+  stroke: var(--axis);
+  stroke-width: 1;
+}
+
 .cashflow__net-line {
   fill: none;
   stroke: var(--series-3);

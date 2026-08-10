@@ -37,16 +37,24 @@ export function CashFlowChart({
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
 
-  const maxAbs = useMemo(() => {
-    let m = 0
+  // Two-sided domain: income/expense are usually >= 0 but net regularly
+  // isn't, and a single-sided [0, maxAbs] scale left no room below the
+  // baseline for a deeply negative month — that month's point landed
+  // below the plotted area entirely (e.g. -199k net against a 492k max
+  // drawn from a *different* month's expense put the dot ~50px off-canvas).
+  const [domainMin, domainMax] = useMemo(() => {
+    let lo = 0
+    let hi = 0
     for (const row of months) {
-      m = Math.max(m, row.income, row.total_expense, Math.abs(row.net))
+      lo = Math.min(lo, row.income, row.total_expense, row.net)
+      hi = Math.max(hi, row.income, row.total_expense, row.net)
     }
-    return m || 1
+    if (lo === hi) hi = lo + 1
+    return [lo, hi]
   }, [months])
 
   const plotHeight = PLOT_BOTTOM - PLOT_TOP
-  const scaleY = (v: number) => PLOT_BOTTOM - (v / maxAbs) * plotHeight
+  const scaleY = (v: number) => PLOT_BOTTOM - ((v - domainMin) / (domainMax - domainMin)) * plotHeight
   // Bars are diverging from the zero baseline: a category can net negative
   // in a heavy-reimbursement month (e.g. a large travel refund), so
   // income/expense aren't guaranteed >= 0 — only "y going up from 0" is.
@@ -66,7 +74,7 @@ export function CashFlowChart({
     })
     .join(' ')
 
-  const gridValues = [0, maxAbs * 0.25, maxAbs * 0.5, maxAbs * 0.75, maxAbs]
+  const gridValues = [0, 0.25, 0.5, 0.75, 1].map((t) => domainMin + (domainMax - domainMin) * t)
 
   const hovered = hoverIdx !== null ? months[hoverIdx] : null
 
@@ -105,7 +113,7 @@ export function CashFlowChart({
               </text>
             </g>
           ))}
-          <line className="cashflow__gridline" x1={0} x2={width} y1={scaleY(0)} y2={scaleY(0)} />
+          <line className="cashflow__baseline" x1={0} x2={width} y1={scaleY(0)} y2={scaleY(0)} />
 
           {months.map((row, i) => {
             const gx = i * GROUP_WIDTH
