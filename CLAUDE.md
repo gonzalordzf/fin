@@ -91,9 +91,22 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
   cada corte, per el propio principio del kit ("al tercer corte casi todo se clasifica
   solo"). AMEX está excluida del matcher de traspasos por titular/RFC (ver regla dura
   arriba) porque su CSV trae el nombre del dueño de tarjeta en cada renglón.
-- **Hard balance validation**: solo BBVA tiene el chequeo de "cuadra al centavo contra
-  el total impreso" + cadena de saldos entre estados. Los otros 7 parsers (AMEX,
-  Revolut, Bitso, GBM, Balagan, Optimax, Shareworks) no lo tienen todavía.
+- **Hard balance validation**: implementada donde existe un total impreso real contra
+  el cual cuadrar, verificado con datos reales de cada fuente:
+  - BBVA: cargos/abonos + cadena de saldos entre estados.
+  - Revolut: Total cargos/Total abonos impresos.
+  - Optimax: Monto == Unidades × Valor de la Unidad (tolerancia 5¢ por redondeo real).
+  - Balagan: Repartición por punto ≈ PARTICIPATION_PCT × net_income (tolerancia $1).
+  - AFORE: subcuentas suman exacto a SALDO ACTUAL.
+  - **AMEX, GBM y Bitso NO tienen ningún total impreso contra el cual validar** (CSV
+    plano sin fila de resumen / XML del Addenda sin total real / CSV sin línea de
+    total) — confirmado revisando la estructura real de cada uno, no es que falte
+    implementar, es que no existe qué chequear.
+  - **Shareworks**: se intentó (Payroll Credit vs "Cash Value" impreso) y se descartó —
+    probado contra un segundo trimestre real, la relación no se sostiene (Cash Value
+    probablemente neta compras de acciones ESPP no extraídas). Un docstring anterior
+    afirmaba haberlo "verificado" con solo un trimestre; ya se corrigió esa afirmación
+    falsa. No re-agregar sin antes extraer también las transacciones "Buy".
 
 ## Diferencias con el kit compartido (`docs/`)
 
