@@ -15,14 +15,25 @@ needed):
 
 The brief expected an explicit company-match cash line; the real
 transaction history doesn't have one. What it does have: "Payroll
-Credit" (the employee's own payroll-deducted ESPP contribution, verified
-across two quarters to sum exactly to the quarter's closing Cash Value)
-and "Release" (RSU-style vesting with a quantity and a price but no
-dollar amount — shares becoming available, not a cash event). Absent a
-literal matching-contribution line, company_match is modeled as the
-market value of vested shares (Release quantity × price) — the closest
-real analog to an employer contribution in this data. This is a
-judgment call, flagged here rather than silently assumed.
+Credit" (the employee's own payroll-deducted ESPP contribution) and
+"Release" (RSU-style vesting with a quantity and a price but no dollar
+amount — shares becoming available, not a cash event). Absent a literal
+matching-contribution line, company_match is modeled as the market value
+of vested shares (Release quantity × price) — the closest real analog to
+an employer contribution in this data. This is a judgment call, flagged
+here rather than silently assumed.
+
+No hard reconciliation against a printed total here (unlike BBVA/Revolut/
+Optimax/Balagan): a prior version of this docstring claimed Payroll
+Credit summed exactly to the closing "Cash Value", based on one quarter
+where that happened to hold. Tested against a second real quarter
+(9/30/2025) it does NOT hold — Payroll Credit summed to $610.23 against
+a closing Cash Value of $523.81, no clean relationship to the delta
+either ($106.02). Cash Value almost certainly nets out ESPP share
+purchases made from that cash mid-quarter, which this parser doesn't
+extract — so there's no reliable printed total to validate
+own_contribution against yet. Don't re-add that check without first
+extracting and reconciling the "Buy" transaction amounts too.
 """
 
 from __future__ import annotations
