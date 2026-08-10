@@ -218,6 +218,81 @@ def spending_by_category(
         return sorted(result, key=lambda r: -r["amount"])
 
 
+@app.get("/monthly-summary")
+def monthly_summary(currency: str = "MXN") -> list[dict]:
+    """Month-by-month income, expense (by category, net), and cash flow —
+    one currency at a time, same principle as /net-worth's per-currency
+    totals: no FX conversion, so mixing them would silently produce a
+    meaningless number. Defaults to MXN since that's where the
+    transactional accounts (BBVA/AMEX/Revolut) and salary live.
+
+    Expense categories are netted exactly like /spending-by-category (a
+    category with real reimbursements inside it, e.g. 'Mundial' or
+    'Vivienda', reports the true net cost, not the gross outflow) — see
+    that endpoint's docstring for why summing only amount<0 would be wrong.
+    'Sin categoría' stays charges-only for the same reason: no way to tell
+    a refund from unrelated income once uncategorized.
+    """
+    with get_session() as session:
+        month_expr = func.strftime("%Y-%m", Transaction.date)
+
+        income_rows = (
+            session.query(month_expr, func.sum(Transaction.amount))
+            .join(Category, Transaction.category_id == Category.id)
+            .filter(Category.kind == CategoryKind.INCOME, Transaction.currency == currency)
+            .group_by(month_expr)
+            .all()
+        )
+
+        expense_rows = (
+            session.query(month_expr, Category.name, Category.nature, func.sum(Transaction.amount))
+            .join(Category, Transaction.category_id == Category.id)
+            .filter(Category.kind == CategoryKind.EXPENSE, Transaction.currency == currency)
+            .group_by(month_expr, Category.name, Category.nature)
+            .all()
+        )
+
+        uncategorized_rows = (
+            session.query(month_expr, func.sum(Transaction.amount))
+            .filter(
+                Transaction.category_id.is_(None),
+                Transaction.amount < 0,
+                Transaction.currency == currency,
+            )
+            .group_by(month_expr)
+            .all()
+        )
+
+        months: dict[str, dict] = {}
+
+        def month_entry(month: str) -> dict:
+            return months.setdefault(
+                month, {"month": month, "income": 0.0, "categories": [], "uncategorized_expense": 0.0}
+            )
+
+        for month, total in income_rows:
+            month_entry(month)["income"] = round(total, 2)
+
+        for month, name, nature, amt in expense_rows:
+            month_entry(month)["categories"].append(
+                {"category": name, "nature": nature.value if nature else None, "amount": round(-amt, 2)}
+            )
+
+        for month, total in uncategorized_rows:
+            month_entry(month)["uncategorized_expense"] = round(-total, 2)
+
+        result = []
+        for month in sorted(months):
+            entry = months[month]
+            entry["categories"].sort(key=lambda c: -c["amount"])
+            total_expense = sum(c["amount"] for c in entry["categories"]) + entry["uncategorized_expense"]
+            entry["total_expense"] = round(total_expense, 2)
+            entry["net"] = round(entry["income"] - total_expense, 2)
+            result.append(entry)
+
+        return result
+
+
 @app.get("/net-worth")
 def net_worth() -> dict:
     """Best-effort current net worth, grouped by currency since no FX

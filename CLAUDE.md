@@ -21,7 +21,7 @@ falta. Cualquier sesión debería leer esto antes de tocar código.
 | `backend/app/seed.py` | Siembra las 9 cuentas + categorías + `manual_data`. Re-correr es seguro. |
 | `backend/app/main.py` | FastAPI: `POST /import/{account}`, `POST /classify`, `GET /accounts`, `GET /transactions`, `GET /spending-by-category`, `GET /net-worth`. |
 | `data/imports/<Cuenta>/` | Carpeta de aterrizaje para estados nuevos, una por institución. Nunca se commitea contenido real (ver `.gitignore`, excluye por extensión). |
-| `frontend/` | Vacío todavía — el dashboard no está construido. |
+| `frontend/` | Dashboard real: React + Vite + TypeScript, consulta la API en vivo (proxy `/api` → `uvicorn` puerto 8000 vía `vite.config.ts`). Vista principal mes a mes: flujo de efectivo (ingreso/gasto/neto) y desglose de gasto por categoría del mes seleccionado, coloreado por naturaleza (Básico/Necesario/Estilo de vida). Paleta y specs de gráficas siguiendo el skill `dataviz` (`frontend/src/theme.css`), con soporte de modo oscuro y vista de tabla accesible como respaldo de cada gráfica. |
 
 ## Mis cuentas
 
@@ -115,9 +115,10 @@ un dashboard HTML de un solo archivo generado por `build.py`/`ux.py`. Este proye
 SQLite + SQLAlchemy + FastAPI en su lugar — la arquitectura de archivos de `docs/` no
 aplica literalmente. Lo que sí se adoptó del kit: el principio de detectar traspasos por
 titular (no por banco), la idea de una capa "Básico/Necesario/Estilo de vida" sobre las
-categorías, y el catálogo de widgets (`docs/03-widgets.md`) como referencia para cuando
-se construya el dashboard — pendiente decidir si el dashboard sigue siendo un HTML
-estático servido por esta API o el patrón de archivo único del kit.
+categorías, y el catálogo de widgets (`docs/03-widgets.md`) como referencia general.
+El dashboard (`frontend/`) terminó siendo una app real (React + Vite) contra la API en
+vivo, no el patrón de archivo único del kit ni un HTML estático — decisión ya tomada,
+ver la tabla de arriba.
 
 ## Cómo correr
 
@@ -131,6 +132,14 @@ uvicorn app.main:app --reload
 
 Ciclo de importación: dejar el estado nuevo en `data/imports/<Cuenta>/`, luego
 `POST /import/{account}`, luego `POST /classify`.
+
+Dashboard (con la API arriba corriendo en el puerto 8000):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ## Tono
 

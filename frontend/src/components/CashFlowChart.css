@@ -1,0 +1,106 @@
+.cashflow {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.cashflow__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cashflow__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cashflow__legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cashflow__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cashflow__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.cashflow__scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.cashflow__bar {
+  cursor: pointer;
+}
+
+.cashflow__bar:hover {
+  opacity: 0.85;
+}
+
+.cashflow__axis-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.cashflow__gridline {
+  stroke: var(--gridline);
+  stroke-width: 1;
+}
+
+.cashflow__net-line {
+  fill: none;
+  stroke: var(--series-3);
+  stroke-width: 2;
+}
+
+.cashflow__net-dot {
+  fill: var(--series-3);
+}
+
+.cashflow__month-label {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+
+.cashflow__month-label--selected {
+  fill: var(--text-primary);
+  font-weight: 600;
+}
+
+.cashflow__tooltip {
+  position: absolute;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.cashflow__tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cashflow__tooltip-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}

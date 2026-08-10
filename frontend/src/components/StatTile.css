@@ -1,0 +1,24 @@
+.stat-tile {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  min-width: 160px;
+}
+
+.stat-tile__label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 6px;
+}
+
+.stat-tile__value {
+  font-size: 28px;
+  font-weight: 600;
+  font-variant-numeric: proportional-nums;
+  margin: 0;
+}
+
+.stat-tile__value--negative {
+  color: var(--series-8);
+}
