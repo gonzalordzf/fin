@@ -7,6 +7,7 @@ time without touching import code. Re-running is safe: existing rows
 """
 
 from app.db import get_session, init_db
+from app.manual_data import apply_manual_data
 from app.models import Account, AccountKind, Category, CategoryKind
 
 ACCOUNTS: list[dict] = [
@@ -92,6 +93,8 @@ def seed() -> None:
                     session.add(Category(name=name, kind=kind))
 
         session.commit()
+
+    apply_manual_data()
 
 
 if __name__ == "__main__":

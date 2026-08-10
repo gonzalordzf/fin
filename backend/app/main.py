@@ -175,20 +175,28 @@ def net_worth() -> dict:
 
     Known gaps, surfaced in `caveats` rather than hidden:
     - GBM: the Addenda block only contains daily interest income, never
-      the invested principal, so each contract's balance is accumulated
-      interest only — it understates true value. Checked whether a fuller
-      statement exists (GBM does have one, under an older ZIP+PDF format
-      with a real "Valor del Portafolio" figure) but the only contract
-      using that format in Drive (BF40HX01) is a separate, all-zero
-      account — not AAU94801/AAU94802, which have no such statement.
-    - Balagan: no statement ever reports a redeemable balance, so this
-      uses cumulative proportional_income (profit share to date) plus the
-      $75,000 MXN initial capital contribution (Cláusula TERCERA of the
-      collaboration contract — not in any monthly Estado de Resultados,
-      so it's a constant, not parsed).
+      the invested principal (confirmed: GBM does issue a fuller statement
+      under an older ZIP+PDF format with a real "Valor del Portafolio"
+      figure, but the only contract using it in Drive, BF40HX01, is a
+      separate, all-zero account — not AAU94801/AAU94802, which have no
+      such statement). Where the user has provided the real aggregate
+      balance manually (app/manual_data.py), that figure is used for the
+      parent GBM account instead, and the contracts' own interest-only
+      balances are excluded from the total to avoid double-counting —
+      they're still listed in `by_account` for the transaction history,
+      just flagged as folded into the parent.
+    - Balagan: no statement ever reports a redeemable balance. Shown as
+      initial_investment ($75,000 MXN, Cláusula TERCERA of the
+      collaboration contract — a constant, since no statement reports it)
+      + cumulative_return (sum of monthly proportional_income).
     """
     with get_session() as session:
         accounts = session.query(Account).all()
+        manual_override_parent_ids = {
+            s.account_id
+            for s in session.query(HoldingSnapshot).filter(HoldingSnapshot.source_file.is_(None))
+        }
+
         totals_by_currency: dict[str, float] = defaultdict(float)
         breakdown = []
         caveats = []
@@ -196,6 +204,7 @@ def net_worth() -> dict:
         for acc in accounts:
             balance = 0.0
             currency = acc.currency
+            detail: dict = {}
 
             txn_sum = (
                 session.query(func.sum(Transaction.amount)).filter_by(account_id=acc.id).scalar()
@@ -229,37 +238,57 @@ def net_worth() -> dict:
                 .scalar()
             )
             if alt_sum:
-                balance += alt_sum
                 if acc.name == "Balagan":
-                    balance += balagan_parser.INITIAL_INVESTMENT_MXN
+                    investment = balagan_parser.INITIAL_INVESTMENT_MXN
+                    balance += investment + alt_sum
+                    detail = {
+                        "initial_investment": round(investment, 2),
+                        "cumulative_return": round(alt_sum, 2),
+                    }
                     caveats.append(
-                        f"{acc.name}: balance = "
-                        f"${balagan_parser.INITIAL_INVESTMENT_MXN:,.0f} MXN initial "
-                        "investment (Cláusula TERCERA of the contract) + cumulative proportional "
-                        "income to date — not a redeemable balance from any statement"
+                        f"{acc.name}: not a redeemable balance from any statement — "
+                        "initial_investment is fixed by Cláusula TERCERA of the contract, "
+                        "cumulative_return is the sum of monthly proportional_income"
                     )
                 else:
+                    balance += alt_sum
                     caveats.append(
                         f"{acc.name}: balance is cumulative proportional income only "
                         "(no known initial capital contribution to add)"
                     )
 
-            if acc.name.startswith("GBM") and txn_sum != 0 and not snapshots:
+            excluded_from_total = False
+            if acc.name.startswith("GBM ") and acc.parent_account_id in manual_override_parent_ids:
+                excluded_from_total = True
+                caveats.append(
+                    f"{acc.name}: excluded from total — its accumulated interest is folded "
+                    "into the parent GBM account's manually-provided balance"
+                )
+            elif acc.name.startswith("GBM") and txn_sum != 0 and not snapshots:
                 caveats.append(
                     f"{acc.name}: balance is accumulated interest income only "
                     "(GBM's Addenda data doesn't include the invested principal, so this understates true value)"
                 )
+            if acc.id in manual_override_parent_ids:
+                caveats.append(
+                    f"{acc.name}: balance is a manually-provided figure, not from an "
+                    "imported statement — see notes on its HoldingSnapshot"
+                )
 
             if balance != 0:
-                breakdown.append(
-                    {
-                        "account": acc.name,
-                        "kind": acc.kind.value,
-                        "balance": round(balance, 2),
-                        "currency": currency,
-                    }
-                )
-                totals_by_currency[currency] += balance
+                entry = {
+                    "account": acc.name,
+                    "kind": acc.kind.value,
+                    "balance": round(balance, 2),
+                    "currency": currency,
+                }
+                if detail:
+                    entry["detail"] = detail
+                if excluded_from_total:
+                    entry["excluded_from_total"] = True
+                breakdown.append(entry)
+                if not excluded_from_total:
+                    totals_by_currency[currency] += balance
 
         return {
             "total_by_currency": {c: round(v, 2) for c, v in totals_by_currency.items()},
