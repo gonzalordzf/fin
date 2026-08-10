@@ -97,14 +97,13 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
     # (fallecido desde entonces) y después a ella — dos personas distintas,
     # el mismo hecho económico, ambas cubiertas por el apellido.
     (r"BATIZ", "Vivienda"),
-    # Roomie de 2023-2024, NO el arrendador: él le pagaba al dueño y
-    # Gonzalo le transfería su parte ($15,450/mes, memo "Renta"/"La fija",
-    # confirmado en los estados reales de ene-mar 2023). El efecto
-    # económico es idéntico —es su costo de vivienda— pero la mecánica
-    # importa para no buscar un contrato de arrendamiento que no existe.
-    # Sin esta regla, 2023 reportaba $2,237/mes de vivienda, cifra
-    # imposible que fue la que delató el hueco.
-    (r"ARREOLA", "Vivienda"),
+    # Arreola tiene vigencia (ver DATED_PERSON_RULES): la relación de
+    # roomies terminó en ago-2023 y siguen siendo amigos.
+    # Arrendadora de ene-oct 2024, $28,000-29,000/mes (en octubre partido
+    # en dos SPEI de $14,500). El traspaso a los Batiz es exacto: octubre
+    # es el último mes con ella, noviembre el primero con Luis Eduardo
+    # Batiz Campbell por el mismo monto — sin traslape ni hueco.
+    (r"RAMONELL", "Vivienda"),
     # Los roomies de 2023-2024 (Eugenia González, José Manuel Marentes) NO
     # van aquí — su relación tiene fecha de corte, ver DATED_PERSON_RULES.
     (r"CASTILLO MEADE", "Regalos"),  # Maria Luis Castillo Meade — regalo de boda, one-off
@@ -121,7 +120,15 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
 # el único costo de vivienda que significa algo: el bruto sobreestima
 # ~$17,400/mes desde que hay roomies. Requiere que spending-by-category
 # sume el neto de la categoría y no solo los cargos — ver main.py.
-RENT_PATTERNS: list[str] = [r"\bRENTA\b"]
+# Sin \b inicial, por la misma concatenación de BBVA que ya obligó a
+# quitarlo en NOMINA y GBM: los memos de salida vienen pegados a la fecha
+# ("0801240Renta FMDO 108 603", "0603240Renta Marzo"), así que no hay
+# frontera de palabra antes de "Renta". Los depósitos ENTRANTES de roomies
+# sí traen espacio ("Enero 2024 Renta"), de modo que \bRENTA\b capturaba
+# solo el lado que entra y ninguno de los que sale — exactamente la
+# asimetría que hacía que 2024 reportara $1,718/mes de vivienda neta.
+# El \b final se conserva: evita machear "rentabilidad" y similares.
+RENT_PATTERNS: list[str] = [r"RENTA\b"]
 _RENT_CATEGORY = "Vivienda"
 
 # Reglas con vigencia: (patrón, categoría, desde, hasta) — ambas fechas
@@ -142,6 +149,18 @@ _RENT_CATEGORY = "Vivienda"
 DATED_PERSON_RULES: list[tuple[str, str, datetime.date | None, datetime.date | None]] = [
     (r"EUGENIA\s+GONZALEZ", "Vivienda", None, datetime.date(2024, 11, 30)),
     (r"MARENTES", "Vivienda", None, datetime.date(2024, 11, 30)),
+    # Roomie de ene-ago 2023, NO el arrendador: él le pagaba al dueño y
+    # Gonzalo le transfería su parte (8 pagos, $15,450 bajando a $12,000,
+    # memos "Renta"/"La fija"). Sin esta regla 2023 reportaba $2,237/mes
+    # de vivienda, cifra imposible que fue la que delató todo el hueco.
+    #
+    # La vigencia cierra en ago-2023 porque los pagos de renta se detienen
+    # ahí y en ene-2024 empieza Ramonell. Sin el corte, la regla arrastraba
+    # $189,250 que no son vivienda: seis SPEI a albo en tres días de
+    # sep-2025 ($166,000, memo "gonzalo") y uno de ene-2026 con memo
+    # "colchones tambires refrigerador" — muebles, no renta. Quedan sin
+    # clasificar para revisión, que es lo correcto: el dato no dice qué son.
+    (r"ARREOLA", "Vivienda", None, datetime.date(2023, 12, 31)),
 ]
 
 
