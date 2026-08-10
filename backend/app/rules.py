@@ -52,7 +52,6 @@ SELF_PAYMENT_RULES: list[tuple[str, str]] = [
 ]
 
 INVESTMENT_INSTITUTION_PATTERNS: list[str] = [
-    r"\bSURA\b",  # validated: real BBVA SPEI RECIBIDO from "SURA INVESTMENT MANAGEMENT MEXICO"
     # No leading \b: BBVA's own PDF text extraction concatenates "SPEI
     # RECIBIDOGBM" as one word with no space before the institution name
     # (confirmed on 4 real GBM withdrawal transactions — \bGBM\b matched 0
@@ -69,6 +68,13 @@ INCOME_RULES: list[tuple[str, str]] = [
     # payroll SPEI as e.g. "0022386NOMINA" with no space — confirmed on 47
     # of 47 real payroll deposits, all invisible to \bNOMINA\b.
     (r"NOMINA\b", "Nómina"),
+    # NOT the AFORE SURA retirement account (that's a separate account,
+    # imported on its own from AFORE's own PDF, never touches BBVA) — the
+    # user confirmed these "SURA INVESTMENT MANAGEMENT MEXICO" SPEI
+    # deposits into BBVA (recurring ~twice a year) are payouts from an
+    # employer caja de ahorro/savings fund, not an investment contribution.
+    # Previously miscategorized as "Inversión" before this was confirmed.
+    (r"\bSURA\b", "Fondo de Ahorro"),
 ]
 
 # Recurring transfers to named individuals — not merchants, but confirmed
@@ -79,6 +85,10 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
     (r"REMIS", "Salud"),  # Begoña Remis — psicóloga, recurring
     (r"BATIZ", "Vivienda"),  # Ceci Batiz — renta del depto, recurring
     (r"CASTILLO MEADE", "Regalos"),  # Maria Luis Castillo Meade — regalo de boda, one-off
+    # Full name, not just "RAMOS": a "Daniel Ramos" appears unrelated in
+    # the World Cup ticket reimbursement thread — matching on the surname
+    # alone would collide with that real person.
+    (r"CLARA RAMOS", "Vivienda"),  # servicio de limpieza doméstica, recurring
 ]
 
 # World Cup 2026: ticket purchases (mostly from Federación Mexicana de

@@ -65,15 +65,20 @@ EXPENSE_CATEGORIES: list[tuple[str, CategoryNature | None]] = [
 """'Delivery' separado de 'Restaurantes y Café', 'Efectivo (ATM)' e
 'Inversión' agregadas — las tres validadas contra estados reales (Rappi/Uber
 Eats, 'RETIRO SIN TARJETA' en BBVA, y aportaciones/rescates hacia
-GBM/Bitso/Optimax/Sura respectivamente). 'Inversión' es Necesario y no
-gasto recortable per docs/02-categorias.md — no se resta del patrimonio,
-solo se excluye de gasto discrecional en el análisis de recorte.
+GBM/Bitso/Optimax respectivamente). 'Inversión' es Necesario y no gasto
+recortable per docs/02-categorias.md — no se resta del patrimonio, solo se
+excluye de gasto discrecional en el análisis de recorte.
 'Otros Gastos' no lleva naturaleza: por definición es lo sin clasificar."""
 
 INCOME_CATEGORIES = [
     "Nómina",
     "Ingreso por Inversión",
     "Reembolsos",
+    # SPEI recurrentes (~semestrales) de "SURA INVESTMENT MANAGEMENT
+    # MEXICO" hacia BBVA — confirmado por el usuario: caja/fondo de ahorro
+    # de la empresa, no una aportación de inversión (no confundir con la
+    # cuenta AFORE SURA, que es una cuenta totalmente separada).
+    "Fondo de Ahorro",
     "Otros Ingresos",
 ]
 
