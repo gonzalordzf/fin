@@ -165,11 +165,51 @@ DATED_PERSON_RULES: list[tuple[str, str, datetime.date | None, datetime.date | N
     # Los 6 SPEI a albo de sep-2025 ($166,000 total, memo solo "gonzalo")
     # son la aportación al Grupo Arreola Herrera Fund I — confirmado por el
     # usuario y respaldado por el contrato de préstamo convertible (ver
-    # manual_data.py). El otro de ene-2026 ($23,250, memo "colchones
-    # tambires refrigerador") es explícitamente otra cosa según el usuario
-    # y queda fuera de esta ventana — sin clasificar para revisión.
+    # manual_data.py).
     (r"ARREOLA", "Inversión", datetime.date(2025, 9, 1), datetime.date(2025, 9, 30)),
+    # $23,250 de ene-2026, memo "colchones tambires refrigerador": muebles
+    # que Gonzalo le compró a Chema para el depto — confirmado por el
+    # usuario. Nótese que NO va a Vivienda: esa categoría mide renta
+    # recurrente, y meter una compra única de muebles ahí infla el costo
+    # de vivienda de ese mes sin ser parte del patrón mensual.
+    (r"ARREOLA", "Compras", datetime.date(2026, 1, 1), datetime.date(2026, 1, 31)),
+    # Pago parcial de los intereses del préstamo mercantil de Cañadas de
+    # Malta (12%/año sobre $25,000, ver manual_data.py) — memo "Pago Deuda
+    # 2", 26-jul-2025, confirmado por el usuario: es solo una parte de lo
+    # que le deben, el resto sigue en disputa. Va a "Ingreso por Inversión"
+    # y NO se suma al balance de la cuenta (que se queda al valor nominal
+    # del contrato, no se sabe si el resto se cobra).
+    (r"0117384335", "Ingreso por Inversión", datetime.date(2025, 7, 20), datetime.date(2025, 7, 31)),
 ]
+
+# Viaje a Colombia, dic-2023: Gonzalo pagó $95,000 (+ $344.43 comisión +
+# $55.11 IVA de la comisión, un solo "ORDEN DE PAGO EXTRANJERO", ref.
+# 8217308.1002.01) y el grupo le fue regresando su parte — confirmado por
+# el usuario como pass-through, igual que el Mundial. A diferencia del
+# Mundial no hay un monto limpio por persona que identifique los
+# reembolsos sin nombre, así que solo se cuentan los que el propio memo
+# marca como del viaje ("Colombia", "Cartagena") — ver CLAUDE.md: el resto
+# de los reembolsos, si los hay, quedan pendientes de identificar, no se
+# adivinan.
+COLOMBIA_TRIP_REF_RE = re.compile(r"8217308\.1002\.01")
+COLOMBIA_TRIP_MEMO_RE = re.compile(r"COLOMBIA|CARTAGENA", re.IGNORECASE)
+_COLOMBIA_TRIP_CATEGORY = "Viajes"
+
+
+def _colombia_trip_match(text: str, amount: float) -> str | None:
+    if COLOMBIA_TRIP_REF_RE.search(text):
+        return _COLOMBIA_TRIP_CATEGORY
+    # Solo entradas: confirmado con datos reales que un match sin signo
+    # atrapaba consumo genuino de un viaje aparte a Cartagena en feb-2024
+    # (AMEX incluye la ciudad del comercio en la descripción — "ALQUIMICO
+    # CARTAGENA", "JUAN VALDEZ ... BOGOTA" — nada que ver con el reembolso
+    # de dic-2023). Los reembolsos reales del grupo son entradas ("BNET ...
+    # colombia", "SPEI RECIBIDO... CARTAGENA LTV"); un cargo de AMEX en
+    # Cartagena siempre es una salida, así que el signo basta para separar
+    # ambas cosas sin acotar por fecha.
+    if amount > 0 and COLOMBIA_TRIP_MEMO_RE.search(text):
+        return _COLOMBIA_TRIP_CATEGORY
+    return None
 
 
 # Roomies identificados por su cuenta interna de BBVA (BNET), no por
@@ -454,6 +494,8 @@ def classify_merchants(session: Session) -> int:
         # distinción que se quería.
         if category_name is None:
             category_name = _world_cup_memo_match(haystack, txn.date, txn.amount)
+        if category_name is None:
+            category_name = _colombia_trip_match(haystack, txn.amount)
         if category_name is None:
             category_name = _roommate_rent_match(haystack, txn.date)
         if category_name is None:
