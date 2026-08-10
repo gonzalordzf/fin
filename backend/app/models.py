@@ -28,6 +28,19 @@ class CategoryKind(str, enum.Enum):
     TRANSFER = "transfer"
 
 
+class CategoryNature(str, enum.Enum):
+    """Only meaningful for EXPENSE categories — feeds the "how much of my
+    spend is actually cuttable" analysis (docs/02-categorias.md):
+    BASICO = surviving, never part of any recorte.
+    NECESARIO = functioning, gets optimized, not eliminated.
+    ESTILO_DE_VIDA = enjoying, this is where a real recorte lives.
+    Income/transfer categories, and "Otros Gastos", have no nature."""
+
+    BASICO = "basico"
+    NECESARIO = "necesario"
+    ESTILO_DE_VIDA = "estilo_de_vida"
+
+
 class Account(Base):
     """One of the 8 real-world accounts, or a sub-account/contract under one
     (e.g. GBM's AAU94801 / AAU94802 contracts hang off the GBM account via
@@ -65,6 +78,7 @@ class Category(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
     kind: Mapped[CategoryKind]
+    nature: Mapped[CategoryNature | None]
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
 
     parent: Mapped[Category | None] = relationship(remote_side=[id], back_populates="children")

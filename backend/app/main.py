@@ -167,10 +167,10 @@ def spending_by_category(
             return q
 
         categorized = date_filtered(
-            session.query(Category.name, func.sum(Transaction.amount))
+            session.query(Category.name, Category.nature, func.sum(Transaction.amount))
             .join(Transaction, Transaction.category_id == Category.id)
             .filter(Transaction.amount < 0, Category.kind != CategoryKind.TRANSFER)
-        ).group_by(Category.name)
+        ).group_by(Category.name, Category.nature)
 
         uncategorized_total = date_filtered(
             session.query(func.sum(Transaction.amount)).filter(
@@ -178,9 +178,16 @@ def spending_by_category(
             )
         ).scalar() or 0.0
 
-        result = [{"category": name, "amount": round(-amt, 2)} for name, amt in categorized.all()]
+        result = [
+            {
+                "category": name,
+                "nature": nature.value if nature else None,
+                "amount": round(-amt, 2),
+            }
+            for name, nature, amt in categorized.all()
+        ]
         if uncategorized_total:
-            result.append({"category": "Sin categoría", "amount": round(-uncategorized_total, 2)})
+            result.append({"category": "Sin categoría", "nature": None, "amount": round(-uncategorized_total, 2)})
 
         return sorted(result, key=lambda r: -r["amount"])
 

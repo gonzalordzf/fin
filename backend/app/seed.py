@@ -8,7 +8,7 @@ time without touching import code. Re-running is safe: existing rows
 
 from app.db import get_session, init_db
 from app.manual_data import apply_manual_data
-from app.models import Account, AccountKind, Category, CategoryKind
+from app.models import Account, AccountKind, Category, CategoryKind, CategoryNature
 
 ACCOUNTS: list[dict] = [
     {"name": "BBVA", "institution": "BBVA México", "kind": AccountKind.TRANSACTIONAL, "currency": "MXN"},
@@ -23,31 +23,39 @@ ACCOUNTS: list[dict] = [
 
 GBM_CONTRACTS = ["AAU94801", "AAU94802"]
 
-EXPENSE_CATEGORIES = [
-    "Vivienda",
-    "Transporte",
-    "Alimentos y Supermercado",
-    "Restaurantes y Café",
-    "Delivery",
-    "Entretenimiento",
-    "Salud",
-    "Viajes",
-    "Compras",
-    "Servicios y Suscripciones",
-    "Educación",
-    "Cuidado Personal",
-    "Impuestos y Comisiones Bancarias",
-    "Efectivo (ATM)",
-    "Inversión",
-    "Otros Gastos",
+EXPENSE_CATEGORIES: list[tuple[str, CategoryNature | None]] = [
+    ("Vivienda", CategoryNature.BASICO),
+    ("Transporte", CategoryNature.NECESARIO),
+    ("Alimentos y Supermercado", CategoryNature.BASICO),
+    ("Restaurantes y Café", CategoryNature.ESTILO_DE_VIDA),
+    ("Delivery", CategoryNature.ESTILO_DE_VIDA),
+    ("Entretenimiento", CategoryNature.ESTILO_DE_VIDA),
+    ("Salud", CategoryNature.BASICO),
+    ("Viajes", CategoryNature.ESTILO_DE_VIDA),
+    ("Compras", CategoryNature.ESTILO_DE_VIDA),
+    # Mezcla telefonía (Básico per docs/02-categorias.md) y suscripciones de
+    # streaming/nube (Necesario ahí) en una sola categoría — decisión de
+    # seed previa a esta capa, no algo que se resuelva solo. NECESARIO es
+    # el punto medio defendible; separarla en dos categorías es una mejora
+    # futura, no una que se está haciendo aquí.
+    ("Servicios y Suscripciones", CategoryNature.NECESARIO),
+    ("Educación", CategoryNature.NECESARIO),
+    # Sin equivalente directo en docs/02-categorias.md — juicio propio:
+    # cuidado personal discrecional (spa, salón) tiende a Estilo de vida
+    # más que a Necesario.
+    ("Cuidado Personal", CategoryNature.ESTILO_DE_VIDA),
+    ("Impuestos y Comisiones Bancarias", CategoryNature.BASICO),
+    ("Efectivo (ATM)", CategoryNature.NECESARIO),
+    ("Inversión", CategoryNature.NECESARIO),
+    ("Otros Gastos", None),
 ]
 """'Delivery' separado de 'Restaurantes y Café', 'Efectivo (ATM)' e
 'Inversión' agregadas — las tres validadas contra estados reales (Rappi/Uber
 Eats, 'RETIRO SIN TARJETA' en BBVA, y aportaciones/rescates hacia
 GBM/Bitso/Optimax/Sura respectivamente). 'Inversión' es Necesario y no
 gasto recortable per docs/02-categorias.md — no se resta del patrimonio,
-solo se excluye de gasto discrecional una vez que exista la capa de
-naturaleza (#19)."""
+solo se excluye de gasto discrecional en el análisis de recorte.
+'Otros Gastos' no lleva naturaleza: por definición es lo sin clasificar."""
 
 INCOME_CATEGORIES = [
     "Nómina",
@@ -90,8 +98,14 @@ def seed() -> None:
                     )
                 )
 
+        for name, nature in EXPENSE_CATEGORIES:
+            existing = (
+                session.query(Category).filter_by(name=name, kind=CategoryKind.EXPENSE).one_or_none()
+            )
+            if existing is None:
+                session.add(Category(name=name, kind=CategoryKind.EXPENSE, nature=nature))
+
         for kind, names in (
-            (CategoryKind.EXPENSE, EXPENSE_CATEGORIES),
             (CategoryKind.INCOME, INCOME_CATEGORIES),
             (CategoryKind.TRANSFER, TRANSFER_CATEGORIES),
         ):
