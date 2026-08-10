@@ -160,12 +160,15 @@ DATED_PERSON_RULES: list[tuple[str, str, datetime.date | None, datetime.date | N
     # de vivienda, cifra imposible que fue la que delató todo el hueco.
     #
     # La vigencia cierra en ago-2023 porque los pagos de renta se detienen
-    # ahí y en ene-2024 empieza Ramonell. Sin el corte, la regla arrastraba
-    # $189,250 que no son vivienda: seis SPEI a albo en tres días de
-    # sep-2025 ($166,000, memo "gonzalo") y uno de ene-2026 con memo
-    # "colchones tambires refrigerador" — muebles, no renta. Quedan sin
-    # clasificar para revisión, que es lo correcto: el dato no dice qué son.
+    # ahí y en ene-2024 empieza Ramonell.
     (r"ARREOLA", "Vivienda", None, datetime.date(2023, 12, 31)),
+    # Los 6 SPEI a albo de sep-2025 ($166,000 total, memo solo "gonzalo")
+    # son la aportación al Grupo Arreola Herrera Fund I — confirmado por el
+    # usuario y respaldado por el contrato de préstamo convertible (ver
+    # manual_data.py). El otro de ene-2026 ($23,250, memo "colchones
+    # tambires refrigerador") es explícitamente otra cosa según el usuario
+    # y queda fuera de esta ventana — sin clasificar para revisión.
+    (r"ARREOLA", "Inversión", datetime.date(2025, 9, 1), datetime.date(2025, 9, 30)),
 ]
 
 
@@ -221,6 +224,14 @@ _WORLD_CUP_MEMO_RE = re.compile(
 # ocurrió.
 _WORLD_CUP_REF_RE = re.compile(r"CUBX\d+", re.IGNORECASE)
 
+# Boletos de la ceremonia inaugural, $243,900 (1-may-2026), confirmado por
+# el usuario — reembolsado por el grupo desde finales de abril. El memo
+# ("Transf a Servicios") no dice nada del Mundial y es genérico, así que
+# se matchea por el número de referencia SPEI, la única forma de
+# identificarlo sin arriesgar falsos positivos con otro "Transf a
+# Servicios" que no tenga relación en el futuro.
+_WORLD_CUP_OPENING_REF_RE = re.compile(r"0040561816")
+
 # Precio unitario del boleto: $403,900 / 20 = $20,195 exactos. Los 16
 # reembolsos del grupo llegan justo por ese monto y muchos traen memos que
 # no dicen nada del Mundial ("Daniel Ramos", "Monica C", "Transferencia",
@@ -231,7 +242,7 @@ _WORLD_CUP_TICKET_PRICE = 20195.00
 
 
 def _world_cup_memo_match(text: str, when: datetime.date, amount: float) -> str | None:
-    if _WORLD_CUP_REF_RE.search(text):
+    if _WORLD_CUP_REF_RE.search(text) or _WORLD_CUP_OPENING_REF_RE.search(text):
         return _WORLD_CUP_CATEGORY
     lo, hi = _WORLD_CUP_WINDOW
     if not (lo <= when <= hi):

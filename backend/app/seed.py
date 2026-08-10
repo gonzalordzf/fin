@@ -1,4 +1,4 @@
-"""Seed the 8 real-world accounts (+ GBM's sub-contracts) and a starter
+"""Seed the real-world accounts (+ GBM's sub-contracts) and a starter
 expense/income category taxonomy.
 
 Categories are plain data, not parser logic — edit/extend this list any
@@ -20,6 +20,22 @@ ACCOUNTS: list[dict] = [
     {"name": "Optimax (Allianz)", "institution": "Allianz", "kind": AccountKind.INVESTMENT_FORMAL, "currency": "MXN"},
     {"name": "Shareworks", "institution": "Shareworks (Coca-Cola)", "kind": AccountKind.EQUITY_COMPENSATION, "currency": "USD"},
     {"name": "AFORE (Sura)", "institution": "AFORE SURA", "kind": AccountKind.INVESTMENT_FORMAL, "currency": "MXN"},
+    # Convertible loan (EUR 7,500, no interest, converts to equity at the
+    # 3-year mark) into "Arreola Herrera Fund I" — a fund run by Jose
+    # Manuel Arreola (a former roommate, see rules.py's DATED_PERSON_RULES)
+    # and Paola Herrera that owns Olivares & Herrera, LDA, trading as
+    # "Lavande" (a laundromat in Lisbon). User confirmed and provided the
+    # contract docs after this was found unclassified in BBVA — currency
+    # kept as EUR rather than converted, same principle as Bitso/Shareworks
+    # staying in USD.
+    {"name": "Grupo Arreola", "institution": "Olivares & Herrera, LDA (Lavande)", "kind": AccountKind.INVESTMENT_INFORMAL, "currency": "EUR"},
+    # $50,000 MXN into "Grupo Alvarez Lomelín Martínez, S.A.P.I. de C.V.",
+    # which owns the brewery "Cañadas de Malta": $25,000 as a 3-year
+    # commercial loan (mutuo mercantil) at 12%/year fixed, and $25,000 as
+    # equity (625 shares, Serie B Clase II, 0.5%). Predates this app's BBVA
+    # history (signed ago-2021, data starts feb-2023), so there is no
+    # statement to import against — same situation as GBM's manual balance.
+    {"name": "Cañadas de Malta", "institution": "Grupo Alvarez Lomelín Martínez, S.A.P.I. de C.V.", "kind": AccountKind.INVESTMENT_INFORMAL, "currency": "MXN"},
 ]
 
 GBM_CONTRACTS = ["AAU94801", "AAU94802"]

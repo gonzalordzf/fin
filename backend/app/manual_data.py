@@ -35,6 +35,50 @@ MANUAL_HOLDING_SNAPSHOTS = [
             "interest-only balances from the total to avoid double-counting."
         ),
     },
+    {
+        "account_name": "Grupo Arreola",
+        "date": datetime.date(2025, 7, 1),
+        "sub_portfolio": None,
+        "market_value": 7_500.00,
+        "currency": "EUR",
+        "notes": (
+            "GRF - CONTRATO DE PRÉSTAMO CONVERTIBLE BORRADOR.docx.pdf: "
+            "EUR 7,500 convertible loan to Olivares & Herrera, LDA, dated "
+            "1-jul-2025 (Cláusula Segunda), no interest (Cláusula Tercera). "
+            "Converts to equity 3 years after the fund's Cierre de la Ronda "
+            "(Cláusula Cuarta) — not yet converted, so this is face value, "
+            "not a current equity valuation. Corroborated by 6 real BBVA "
+            "SPEI transfers to albo totaling $166,000 MXN over 9-11 sep "
+            "2025 (memo just 'gonzalo' — no reference to the fund, found "
+            "and confirmed by the user only after being flagged as "
+            "unclassified). Arreola Herrera Fund I's own Year-1 report "
+            "(Lavande_Informe_Ano1-3.pdf) covers the underlying laundromat "
+            "business's P&L, not Gonzalo's specific share, so it isn't a "
+            "usable mark for this position."
+        ),
+    },
+    {
+        "account_name": "Cañadas de Malta",
+        "date": datetime.date(2021, 8, 6),
+        "sub_portfolio": None,
+        "market_value": 50_000.00,
+        "currency": "MXN",
+        "notes": (
+            "Declaración de Reconocimiento de Derechos y Obligaciones, "
+            "CONTRATO MUTUO MERCANTIL and Contrato de Compraventa Acciones, "
+            "all signed 6-ago-2021: $25,000 MXN as a 3-year commercial loan "
+            "at 12%/year fixed interest (mutuo mercantil, due back with "
+            "interest ~ago-2024), plus $25,000 MXN as equity — 625 shares "
+            "at $40 each, Serie B Clase II, 0.5% of Grupo Alvarez Lomelín "
+            "Martínez, S.A.P.I. de C.V. (owner of the brewery). Recorded at "
+            "the original $50,000 face value: no repayment of the loan "
+            "appears anywhere in the real BBVA history despite the 3-year "
+            "term having lapsed, and there is no current valuation for the "
+            "equity stake. Whether the loan is overdue, extended, or repaid "
+            "through an account this app doesn't have is unresolved — see "
+            "CLAUDE.md's abierto/sin resolver."
+        ),
+    },
 ]
 
 
