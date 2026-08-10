@@ -49,6 +49,14 @@ SELF_PAYMENT_RULES: list[tuple[str, str]] = [
     # transfer — validated: real AMEX line "CREDITO POR CARGO NO
     # RECONOCIDO".
     (r"CREDITO POR CARGO NO RECONOCIDO", "Reembolsos"),
+    # Order matters and is load-bearing: "COMISION POR PAGO DEVUELTO"
+    # contains "PAGO DEVUELTO", and SELF_PAYMENT_RULES is evaluated before
+    # MERCHANT_RULES in full, so the commission has to be caught here — not
+    # in MERCHANT_RULES — or the broader rule below would swallow it.
+    (r"COMISION POR PAGO DEVUELTO", "Impuestos y Comisiones Bancarias"),
+    # A bounced card payment reversing back onto the balance: not spending,
+    # it's the undo of a card payment, so it belongs with them and nets out.
+    (r"PAGO DEVUELTO", "Pago de Tarjeta de Crédito"),
 ]
 
 INVESTMENT_INSTITUTION_PATTERNS: list[str] = [
@@ -105,6 +113,10 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
 # rather than guessed.
 WORLD_CUP_PATTERNS: list[str] = [
     r"MUNDIAL", r"\bFIFA\b", r"\bFWC\b", r"FEDERACION MEXICANA DE FUTBOL",
+    # Ticket broker (Calabasas, CA) the user confirmed as the semifinal
+    # tickets bought on AMEX and reimbursed by SPEI — the two real charges
+    # ($209,207 / $57,150) are World Cup, not generic entertainment.
+    r"SPOTLIGHT TICKET",
 ]
 _WORLD_CUP_CATEGORY = "Mundial"
 
@@ -149,16 +161,63 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     (r"OURARING", "Servicios y Suscripciones"),
     (r"TELEFONOS DE MEXICO", "Servicios y Suscripciones"),
     (r"CONEKTA\*TOTALPASS", "Cuidado Personal"),
+    (r"GYMPASS", "Cuidado Personal"),
+    # Same vendor, three different descriptors across the years (CONEKTA
+    # gateway, the tilde variant, and their own SAPI entity) — all one gym
+    # membership, confirmed by the matching amounts and cadence.
+    (r"TOTAL\s*[~*]?\s*PASS", "Cuidado Personal"),
     # Entretenimiento
     (r"PLAYSTATION NETWORK", "Entretenimiento"),
+    (r"TICKETMASTER", "Entretenimiento"),
+    (r"CINEPOLIS|CINEMEX", "Entretenimiento"),
+    # Matched on the ASCII-safe fragment: AMEX's own export mojibakes this
+    # merchant ("CONECTAPP*PÃ DELRANGERS"), so the accented name can't be
+    # relied on. Padel court bookings.
+    (r"DELRANGERS", "Entretenimiento"),
     # Compras
     (r"AMAZON MX", "Compras"),
     (r"LIVERPOOL", "Compras"),
     (r"FANTASIAS", "Compras"),
+    (r"APPLE (STORE|MEXICO)", "Compras"),
+    (r"UNIQLO", "Compras"),
+    (r"ADIDAS", "Compras"),
+    (r"SWATCH", "Compras"),
+    (r"HELLY HANSEN", "Compras"),
+    (r"\bREI #", "Compras"),
+    (r"MOBLUM", "Compras"),  # muebles
+    (r"EMMASLEEP", "Compras"),  # colchón
     # Viajes
     (r"AEROMEXICO", "Viajes"),
     (r"AIR FRANCE", "Viajes"),
     (r"HTL\*", "Viajes"),
+    (r"AIRBNB", "Viajes"),
+    (r"EXPEDIA", "Viajes"),
+    (r"CELEBRITY CRUISES", "Viajes"),
+    (r"COPA AIRLINES", "Viajes"),
+    (r"VIVAAEROBUS", "Viajes"),
+    (r"Concesionaria Vuela", "Viajes"),  # Volaris
+    (r"PALACE RESORTS", "Viajes"),
+    (r"\bHERTZ\b", "Viajes"),
+    (r"VAIL SKI PASS|VAL THORENS", "Viajes"),
+    # Restaurantes (bloque tardío: comercios confirmados al ampliar el
+    # historial de AMEX a 2023-2026)
+    (r"AMIGAS CONDESA", "Restaurantes y Café"),
+    # El restaurante en el que el usuario es inversionista — consumo propio
+    # en el local, no tiene relación con la aportación de capital (esa vive
+    # en AlternativeInvestmentEntry, no en Transaction, así que no colisiona).
+    (r"BALAGAN", "Restaurantes y Café"),
+    (r"PAVIRO", "Restaurantes y Café"),
+    # Impuestos y Comisiones Bancarias — cuotas y cargos de la propia AMEX
+    (r"CUOTA ANUAL", "Impuestos y Comisiones Bancarias"),
+    (r"IVA APLICABLE", "Impuestos y Comisiones Bancarias"),
+    (r"AJUSTE DE DEBITO", "Impuestos y Comisiones Bancarias"),
+    (r"\*AMEX INTERNET", "Impuestos y Comisiones Bancarias"),
+    (r"RET CAJ OTRO BCO|RETIRO CAJERO AUTOMATICO", "Efectivo (ATM)"),
+    # Transporte
+    (r"\bDIDI\b", "Transporte"),
+    # Aseguradoras de auto (Qualitas, ANA) — Transporte, no Vivienda: son
+    # pólizas vehiculares, confirmado por el nombre de la aseguradora.
+    (r"QUALITAS|ANA COMPA", "Transporte"),
     # Vivienda
     (r"ROTOPLAS", "Vivienda"),
 ]
