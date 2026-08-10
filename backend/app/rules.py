@@ -24,6 +24,7 @@ Transporte/Efectivo entries in MERCHANT_RULES.
 
 from __future__ import annotations
 
+import datetime
 import re
 
 from sqlalchemy.orm import Session
@@ -104,15 +105,8 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
     # Sin esta regla, 2023 reportaba $2,237/mes de vivienda, cifra
     # imposible que fue la que delató el hueco.
     (r"ARREOLA", "Vivienda"),
-    # Roomies de 2023-2024. Van a Vivienda sin importar el signo, igual que
-    # RENT_PATTERNS abajo: en unos meses depositaban su parte y en otros
-    # Gonzalo les transfería a ellos, según quién le pagara al dueño ese
-    # mes. Como la categoría netea, la dirección deja de importar y el
-    # resultado es el costo real de vivienda en cualquiera de los dos casos.
-    # Nombre completo, no solo el apellido: "GONZALEZ" y "JOSE MANUEL" son
-    # demasiado comunes para machear solos sin arriesgar falsos positivos.
-    (r"EUGENIA\s+GONZALEZ", "Vivienda"),
-    (r"MARENTES", "Vivienda"),
+    # Los roomies de 2023-2024 (Eugenia González, José Manuel Marentes) NO
+    # van aquí — su relación tiene fecha de corte, ver DATED_PERSON_RULES.
     (r"CASTILLO MEADE", "Regalos"),  # Maria Luis Castillo Meade — regalo de boda, one-off
     # Full name, not just "RAMOS": a "Daniel Ramos" appears unrelated in
     # the World Cup ticket reimbursement thread — matching on the surname
@@ -129,6 +123,37 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
 # sume el neto de la categoría y no solo los cargos — ver main.py.
 RENT_PATTERNS: list[str] = [r"\bRENTA\b"]
 _RENT_CATEGORY = "Vivienda"
+
+# Reglas con vigencia: (patrón, categoría, desde, hasta) — ambas fechas
+# inclusivas, None = sin límite por ese lado.
+#
+# Existen porque una misma persona cambia de rol con el tiempo y el nombre
+# solo no basta para decidir la categoría. Eugenia González y José Manuel
+# Marentes fueron roomies hasta noviembre de 2024 y siguen siendo amigos:
+# un depósito suyo en 2024 es su parte de la renta, pero una transferencia
+# en 2025 es cualquier otra cosa (una cena, un préstamo, un regalo).
+# Clasificar por nombre sin fecha metía gasto de vivienda que nunca
+# existió — se detectó por una transferencia a Eugenia en nov-2025, ya
+# fuera de la relación de roomies.
+#
+# Fuera de su ventana estos movimientos quedan SIN clasificar a propósito:
+# el dato no dice de qué fueron, y adivinar es justo lo que este proyecto
+# no hace. Aparecen en "Sin categoría" para revisión manual.
+DATED_PERSON_RULES: list[tuple[str, str, datetime.date | None, datetime.date | None]] = [
+    (r"EUGENIA\s+GONZALEZ", "Vivienda", None, datetime.date(2024, 11, 30)),
+    (r"MARENTES", "Vivienda", None, datetime.date(2024, 11, 30)),
+]
+
+
+def _first_dated_match(text: str, when: datetime.date) -> str | None:
+    for pattern, category_name, valid_from, valid_until in DATED_PERSON_RULES:
+        if valid_from is not None and when < valid_from:
+            continue
+        if valid_until is not None and when > valid_until:
+            continue
+        if re.search(pattern, text, re.IGNORECASE):
+            return category_name
+    return None
 
 # World Cup 2026: ticket purchases (mostly from Federación Mexicana de
 # Fútbol) and reimbursements from the friend group that paid Gonzalo back.
@@ -283,6 +308,14 @@ def classify_merchants(session: Session) -> int:
             category_name = _INVESTMENT_CATEGORY
         if category_name is None:
             category_name = _first_match(haystack, INCOME_RULES)
+        # Va antes que las reglas por nombre para que, dentro de su
+        # vigencia, la relación gane. Fuera de vigencia el movimiento sigue
+        # cayendo a las reglas genéricas de abajo: si el memo dice "renta"
+        # se irá a Vivienda de todos modos, pero por lo que dice el propio
+        # movimiento y no por quién es la contraparte — que es justo la
+        # distinción que se quería.
+        if category_name is None:
+            category_name = _first_dated_match(haystack, txn.date)
         if category_name is None:
             category_name = _first_match(haystack, KNOWN_PERSON_RULES)
         if category_name is None and any(
