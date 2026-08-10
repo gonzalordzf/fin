@@ -54,7 +54,7 @@ _MONTH_RE = re.compile(
     "|".join(_MESES), re.IGNORECASE
 )
 _YEAR_RE = re.compile(r"de (\d{4})")
-_MONEY_RE = re.compile(r"\$\s*(-|[\d,]+\.?\d*)")
+_NUMBER_TOKEN_RE = re.compile(r"-?[\d,]+\.?\d*")
 
 
 def _strip_accents(text: str) -> str:
@@ -64,13 +64,29 @@ def _strip_accents(text: str) -> str:
 
 
 def _find_amount(text: str, label: str) -> float:
+    """Finds "$ <amount>" after `label`. The amount is joined from every
+    consecutive numeric token after the "$", not just the first one:
+    confirmed on a real statement that pdfplumber's extraction sometimes
+    inserts a stray space inside a number ("$ 2 38,964" printed as
+    "$238,964") — matching only the first token silently truncated the
+    figure to $2."""
     target = _strip_accents(label).lower()
     for line in text.splitlines():
         if _strip_accents(line).lower().startswith(target):
-            m = _MONEY_RE.search(line)
-            if not m or m.group(1) == "-":
-                return 0.0
-            return float(m.group(1).replace(",", ""))
+            tokens = line.split()
+            for i, tok in enumerate(tokens):
+                if tok != "$":
+                    continue
+                parts = []
+                j = i + 1
+                while j < len(tokens) and _NUMBER_TOKEN_RE.fullmatch(tokens[j]):
+                    parts.append(tokens[j])
+                    j += 1
+                joined = "".join(parts)
+                if joined in ("", "-"):
+                    return 0.0
+                return float(joined.replace(",", ""))
+            return 0.0
     raise ValueError(f"Could not find line {label!r} in Balagan statement")
 
 

@@ -211,10 +211,13 @@ def net_worth() -> dict:
       balances are excluded from the total to avoid double-counting —
       they're still listed in `by_account` for the transaction history,
       just flagged as folded into the parent.
-    - Balagan: no statement ever reports a redeemable balance. Shown as
-      initial_investment ($75,000 MXN, Cláusula TERCERA of the
-      collaboration contract — a constant, since no statement reports it)
-      + cumulative_return (sum of monthly proportional_income).
+    - Balagan: no statement ever reports a redeemable balance, and the
+      balance is NOT investment + cumulative distributions — the monthly
+      "Repartición por punto" is paid out to the user in cash each month,
+      it doesn't stay in the account. Balance is just initial_investment
+      ($75,000 MXN, Cláusula TERCERA — a constant, since no statement
+      reports it). cash_distributed_to_date and average_monthly_return_pct
+      in `detail` report the payouts as a return metric, not as balance.
     """
     with get_session() as session:
         accounts = session.query(Account).all()
@@ -263,25 +266,41 @@ def net_worth() -> dict:
                 .filter_by(account_id=acc.id)
                 .scalar()
             )
-            if alt_sum:
-                if acc.name == "Balagan":
-                    investment = balagan_parser.INITIAL_INVESTMENT_MXN
-                    balance += investment + alt_sum
-                    detail = {
-                        "initial_investment": round(investment, 2),
-                        "cumulative_return": round(alt_sum, 2),
-                    }
-                    caveats.append(
-                        f"{acc.name}: not a redeemable balance from any statement — "
-                        "initial_investment is fixed by Cláusula TERCERA of the contract, "
-                        "cumulative_return is the sum of monthly proportional_income"
-                    )
-                else:
-                    balance += alt_sum
-                    caveats.append(
-                        f"{acc.name}: balance is cumulative proportional income only "
-                        "(no known initial capital contribution to add)"
-                    )
+            if acc.name == "Balagan":
+                # The monthly "Repartición por punto" is paid out to the user
+                # in cash each month — it never sits inside Balagan, so it
+                # must NOT be added to the recoverable balance (that was a
+                # real bug: treating it as retained/compounding earnings
+                # inflated the balance to $75,000 + cumulative distributions
+                # instead of just the $75,000 principal). The distributions
+                # are reported separately as a return metric instead.
+                investment = balagan_parser.INITIAL_INVESTMENT_MXN
+                balance += investment
+                months = (
+                    session.query(AlternativeInvestmentEntry).filter_by(account_id=acc.id).count()
+                )
+                cash_distributed = alt_sum or 0.0
+                avg_monthly_return_pct = (
+                    round((cash_distributed / months) / investment * 100, 3) if months else None
+                )
+                detail = {
+                    "initial_investment": round(investment, 2),
+                    "cash_distributed_to_date": round(cash_distributed, 2),
+                    "average_monthly_return_pct": avg_monthly_return_pct,
+                }
+                caveats.append(
+                    f"{acc.name}: balance is the fixed $75,000 investment (Cláusula TERCERA) "
+                    "only — monthly 'Repartición por punto' is paid out in cash, not retained "
+                    "in the account, so it is NOT added to the balance. cash_distributed_to_date "
+                    "is the cumulative amount paid out; average_monthly_return_pct is that cash "
+                    "divided by months of data, over the $75,000 principal"
+                )
+            elif alt_sum:
+                balance += alt_sum
+                caveats.append(
+                    f"{acc.name}: balance is cumulative proportional income only "
+                    "(no known initial capital contribution to add)"
+                )
 
             excluded_from_total = False
             if acc.name.startswith("GBM ") and acc.parent_account_id in manual_override_parent_ids:
