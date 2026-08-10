@@ -197,6 +197,52 @@ _RENT_MEMO_RE = re.compile(
 )
 
 
+# Memos del Mundial que no dicen "mundial". El usuario confirmó uno por
+# uno estos movimientos como boletos comprados para el grupo y sus
+# reembolsos, pero los memos son coloquiales ("Y SI Si", "vamos mexico
+# caraj", "ysisiPibana") o genéricos ("tickets", "boletos", "entradas
+# semi"), así que ningún patrón de WORLD_CUP_PATTERNS los alcanzaba.
+#
+# Acotado a la ventana del torneo a propósito: "boleto"/"ticket" fuera de
+# ella es cualquier otra cosa (hay un "boleto Malu" en ene-2025 que no
+# tiene relación). El límite inferior es abr-2026, cuando arranca la
+# compra a la Federación.
+_WORLD_CUP_WINDOW = (datetime.date(2026, 4, 1), datetime.date(2026, 8, 31))
+_WORLD_CUP_MEMO_RE = re.compile(
+    r"BOLETO|TICKET|\bTKT\b|ENTRADAS?\s+SEMI|Y\s*SI\s*SI|YSISI|VAMOS\s+MEXICO",
+    re.IGNORECASE,
+)
+
+# Referencia propia de la Federación en los SPEI ("Cubx6020823502114").
+# No lleva ventana de fechas porque el identificador es inequívoco por sí
+# solo, y es la única forma de capturar el SPEI DEVUELTO de $403,900: ese
+# cargo se duplicó y se revirtió el mismo día con la misma referencia, así
+# que sin la devolución la categoría queda inflada por un pago que nunca
+# ocurrió.
+_WORLD_CUP_REF_RE = re.compile(r"CUBX\d+", re.IGNORECASE)
+
+# Precio unitario del boleto: $403,900 / 20 = $20,195 exactos. Los 16
+# reembolsos del grupo llegan justo por ese monto y muchos traen memos que
+# no dicen nada del Mundial ("Daniel Ramos", "Monica C", "Transferencia",
+# "QUIERE VOLAR QUIERE VOLAR"). El usuario los confirmó uno por uno; el
+# monto exacto dentro de la ventana es la señal que los identifica sin
+# tener que listar nombres.
+_WORLD_CUP_TICKET_PRICE = 20195.00
+
+
+def _world_cup_memo_match(text: str, when: datetime.date, amount: float) -> str | None:
+    if _WORLD_CUP_REF_RE.search(text):
+        return _WORLD_CUP_CATEGORY
+    lo, hi = _WORLD_CUP_WINDOW
+    if not (lo <= when <= hi):
+        return None
+    if _WORLD_CUP_MEMO_RE.search(text):
+        return _WORLD_CUP_CATEGORY
+    if abs(abs(amount) - _WORLD_CUP_TICKET_PRICE) < 0.01:
+        return _WORLD_CUP_CATEGORY
+    return None
+
+
 def _roommate_rent_match(text: str, when: datetime.date) -> str | None:
     for bnet_id, valid_from, valid_until in ROOMMATE_ACCOUNT_RULES:
         if valid_from is not None and when < valid_from:
@@ -339,6 +385,14 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     (r"QUALITAS|ANA COMPA", "Transporte"),
     # Vivienda
     (r"ROTOPLAS", "Vivienda"),
+    # Administración del condominio: memos "Pago FMDO 603", "Recibo
+    # 578245". FMDO 603 es el mismo identificador de departamento que
+    # aparece en el memo de renta de Ramonell ("Renta FMDO 108 603"), así
+    # que es la cuota de mantenimiento del depto, no un proveedor suelto.
+    (r"CONDOMIDRACO", "Vivienda"),
+    # Devolución del SAT ("HACIENDA TE DEVUELVE", Tesorería de la
+    # Federación). Es dinero que regresa, no ingreso nuevo.
+    (r"HACIENDA TE DEVUELVE", "Reembolsos"),
 ]
 
 
@@ -377,6 +431,8 @@ def classify_merchants(session: Session) -> int:
         # se irá a Vivienda de todos modos, pero por lo que dice el propio
         # movimiento y no por quién es la contraparte — que es justo la
         # distinción que se quería.
+        if category_name is None:
+            category_name = _world_cup_memo_match(haystack, txn.date, txn.amount)
         if category_name is None:
             category_name = _roommate_rent_match(haystack, txn.date)
         if category_name is None:
