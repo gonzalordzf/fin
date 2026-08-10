@@ -86,6 +86,11 @@
   font-weight: 600;
 }
 
+.cashflow__ratio-label {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
 .cashflow__tooltip {
   position: absolute;
   background: var(--surface-1);

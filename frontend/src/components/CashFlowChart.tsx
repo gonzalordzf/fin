@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import type { MonthSummary } from '../api'
 import './CashFlowChart.css'
 
-const CHART_HEIGHT = 280
-const PLOT_TOP = 16
+const CHART_HEIGHT = 294
+const PLOT_TOP = 30
 const PLOT_BOTTOM = CHART_HEIGHT - 40
 const GROUP_WIDTH = 46
 const BAR_WIDTH = 16
@@ -14,6 +14,17 @@ function formatCompact(value: number): string {
   if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
   if (abs >= 1_000) return `${(value / 1_000).toFixed(0)}k`
   return value.toFixed(0)
+}
+
+// Gasto/ingreso ratio for a month — undefined when income is 0. Capped
+// display at ±999% so a real outlier month (income that dropped to near
+// nothing) doesn't blow out the label's width and crowd its neighbors;
+// the color still reads over/under 100% at a glance.
+function monthRatio(income: number, totalExpense: number): { text: string; color: string } {
+  if (!(income > 0)) return { text: '—', color: 'var(--text-muted)' }
+  const raw = (totalExpense / income) * 100
+  const text = Math.abs(raw) > 999 ? `${raw > 0 ? '999' : '-999'}%+` : `${Math.round(raw)}%`
+  return { text, color: raw <= 100 ? 'var(--good)' : 'var(--series-8)' }
 }
 
 function formatMoney(value: number, currency: string): string {
@@ -157,6 +168,15 @@ export function CashFlowChart({
                 >
                   {row.month.slice(2)}
                 </text>
+                <text
+                  className="cashflow__ratio-label"
+                  x={gx + GROUP_WIDTH / 2}
+                  y={PLOT_TOP - 14}
+                  textAnchor="middle"
+                  fill={monthRatio(row.income, row.total_expense).color}
+                >
+                  {monthRatio(row.income, row.total_expense).text}
+                </text>
               </g>
             )
           })}
@@ -204,6 +224,10 @@ export function CashFlowChart({
             <div className="cashflow__tooltip-row">
               <span>Neto</span>
               <span>{formatMoney(hovered.net, currency)}</span>
+            </div>
+            <div className="cashflow__tooltip-row">
+              <span>Gasto/Ingreso</span>
+              <span>{monthRatio(hovered.income, hovered.total_expense).text}</span>
             </div>
           </div>
         )}
