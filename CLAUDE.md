@@ -32,7 +32,7 @@ falta. Cualquier sesión debería leer esto antes de tocar código.
 | Revolut | Revolut | transactional | MXN | PDF, montos vienen en convención invertida (se voltea el signo al importar). |
 | Bitso | Bitso | investment_formal | MXN | CSV. |
 | GBM | GBM | investment_formal | MXN | Dos sub-contratos (`GBM AAU94801`, `GBM AAU94802`) colgados como hijos vía `parent_account_id`. El Addenda XML solo trae interés diario, nunca el capital invertido — el balance real de la cuenta padre viene de `manual_data.py` (screenshot de la app), y los hijos se excluyen del total para no duplicar (`excluded_from_total`). |
-| Balagan | Balagan | investment_informal | MXN | Inversión informal, contrato de colaboración. `INITIAL_INVESTMENT_MXN = 75000.0` es constante (Cláusula TERCERA, no sale de ningún estado). El balance mostrado es inversión + retorno acumulado, expuesto explícito en `detail` — **pendiente confirmar con el usuario si el rescate real es a valor fijo ($75k, Cláusulas QUINTA/SEXTA) o ajustado por crecimiento**, no asumir. |
+| Balagan | Balagan | investment_informal | MXN | Inversión informal, contrato de colaboración. `INITIAL_INVESTMENT_MXN = 75000.0` es constante (Cláusula TERCERA, no sale de ningún estado). Balance = solo los $75,000 — la "Repartición por punto" mensual se paga en efectivo cada mes, no se queda en la cuenta, así que NO se suma al balance (confirmado con el usuario; antes era un bug real: se sumaba como si se retuviera/compusiera). `detail.cash_distributed_to_date` y `detail.average_monthly_return_pct` reportan esos pagos como métrica de retorno separada. Aún pendiente: si el rescate real del principal es a valor fijo ($75k, Cláusulas QUINTA/SEXTA) o ajustado por crecimiento. |
 | Optimax (Allianz) | Allianz | investment_formal | MXN | PDF con 3 sub-portafolios. |
 | Shareworks | Shareworks (Coca-Cola) | equity_compensation | USD | PDF. |
 | AFORE (Sura) | AFORE SURA | investment_formal | MXN | PDF de 1 página (`detalleMovimientos.pdf`, sin fecha en el nombre — la fecha real sale de "FECHA Y HORA DE EMISIÓN" dentro del PDF). Balance reportado como snapshot único en 4 subcuentas (Retiro, Vivienda, Voluntario, Saldo en tránsito) que suman exacto al "SALDO ACTUAL" impreso. La sección "MOVIMIENTOS EN TU CUENTA" (aportaciones INFONAVIT/patronal/IMSS) NO se parsea a `Transaction` a propósito — ya están incluidas en el saldo, y crear transacciones además del snapshot duplicaría el total (mismo error que se evitó con GBM). |
@@ -74,9 +74,9 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
 1. GBM: el balance de la cuenta padre es el que reportó el usuario manualmente
    (screenshot 2026-06-18, `manual_data.py`); los sub-contratos AAU94801/AAU94802 se
    muestran en el desglose pero se excluyen del total.
-2. Balagan: se muestra como `initial_investment` ($75,000, constante contractual) +
-   `cumulative_return` (suma de `proportional_income` mensual), nunca como un solo
-   número opaco.
+2. Balagan: el balance es SOLO `initial_investment` ($75,000, constante contractual).
+   La "Repartición por punto" mensual se paga en efectivo y NUNCA se suma al balance —
+   se reporta aparte como `cash_distributed_to_date` / `average_monthly_return_pct`.
 
 ## Abierto / sin resolver
 
