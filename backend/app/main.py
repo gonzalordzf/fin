@@ -15,6 +15,7 @@ from sqlalchemy import func
 
 from app.db import get_session, init_db
 from app.importers import amex, balagan, bbva, bitso, gbm, optimax, revolut, shareworks
+from app.parsers import balagan as balagan_parser
 from app.models import (
     Account,
     AlternativeInvestmentEntry,
@@ -175,11 +176,16 @@ def net_worth() -> dict:
     Known gaps, surfaced in `caveats` rather than hidden:
     - GBM: the Addenda block only contains daily interest income, never
       the invested principal, so each contract's balance is accumulated
-      interest only — it understates true value.
+      interest only — it understates true value. Checked whether a fuller
+      statement exists (GBM does have one, under an older ZIP+PDF format
+      with a real "Valor del Portafolio" figure) but the only contract
+      using that format in Drive (BF40HX01) is a separate, all-zero
+      account — not AAU94801/AAU94802, which have no such statement.
     - Balagan: no statement ever reports a redeemable balance, so this
-      uses cumulative proportional_income (profit share to date) and
-      excludes the $75,000 MXN initial capital contribution, which isn't
-      in any imported document.
+      uses cumulative proportional_income (profit share to date) plus the
+      $75,000 MXN initial capital contribution (Cláusula TERCERA of the
+      collaboration contract — not in any monthly Estado de Resultados,
+      so it's a constant, not parsed).
     """
     with get_session() as session:
         accounts = session.query(Account).all()
@@ -224,10 +230,19 @@ def net_worth() -> dict:
             )
             if alt_sum:
                 balance += alt_sum
-                caveats.append(
-                    f"{acc.name}: balance is cumulative proportional income only "
-                    "(excludes the initial capital contribution, which isn't in any imported statement)"
-                )
+                if acc.name == "Balagan":
+                    balance += balagan_parser.INITIAL_INVESTMENT_MXN
+                    caveats.append(
+                        f"{acc.name}: balance = "
+                        f"${balagan_parser.INITIAL_INVESTMENT_MXN:,.0f} MXN initial "
+                        "investment (Cláusula TERCERA of the contract) + cumulative proportional "
+                        "income to date — not a redeemable balance from any statement"
+                    )
+                else:
+                    caveats.append(
+                        f"{acc.name}: balance is cumulative proportional income only "
+                        "(no known initial capital contribution to add)"
+                    )
 
             if acc.name.startswith("GBM") and txn_sum != 0 and not snapshots:
                 caveats.append(
