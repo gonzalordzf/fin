@@ -19,6 +19,7 @@ ACCOUNTS: list[dict] = [
     {"name": "Balagan", "institution": "Balagan", "kind": AccountKind.INVESTMENT_INFORMAL, "currency": "MXN"},
     {"name": "Optimax (Allianz)", "institution": "Allianz", "kind": AccountKind.INVESTMENT_FORMAL, "currency": "MXN"},
     {"name": "Shareworks", "institution": "Shareworks (Coca-Cola)", "kind": AccountKind.EQUITY_COMPENSATION, "currency": "USD"},
+    {"name": "AFORE (Sura)", "institution": "AFORE SURA", "kind": AccountKind.INVESTMENT_FORMAL, "currency": "MXN"},
 ]
 
 GBM_CONTRACTS = ["AAU94801", "AAU94802"]

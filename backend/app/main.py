@@ -15,7 +15,7 @@ from sqlalchemy import func
 
 from app.classify import classify_transfers
 from app.db import get_session, init_db
-from app.importers import amex, balagan, bbva, bitso, gbm, optimax, revolut, shareworks
+from app.importers import afore, amex, balagan, bbva, bitso, gbm, optimax, revolut, shareworks
 from app.parsers import balagan as balagan_parser
 from app.rules import classify_merchants
 from app.models import (
@@ -46,6 +46,7 @@ IMPORTERS = {
     "Balagan": (balagan.import_balagan_statement, {".pdf"}),
     "Optimax": (optimax.import_optimax_statement, {".pdf"}),
     "Shareworks": (shareworks.import_shareworks_statement, {".pdf"}),
+    "AFORE": (afore.import_afore_statement, {".pdf"}),
 }
 
 

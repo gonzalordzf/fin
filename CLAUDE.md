@@ -35,7 +35,7 @@ falta. Cualquier sesión debería leer esto antes de tocar código.
 | Balagan | Balagan | investment_informal | MXN | Inversión informal, contrato de colaboración. `INITIAL_INVESTMENT_MXN = 75000.0` es constante (Cláusula TERCERA, no sale de ningún estado). El balance mostrado es inversión + retorno acumulado, expuesto explícito en `detail` — **pendiente confirmar con el usuario si el rescate real es a valor fijo ($75k, Cláusulas QUINTA/SEXTA) o ajustado por crecimiento**, no asumir. |
 | Optimax (Allianz) | Allianz | investment_formal | MXN | PDF con 3 sub-portafolios. |
 | Shareworks | Shareworks (Coca-Cola) | equity_compensation | USD | PDF. |
-| AFORE (Sura) | Sura | *(pendiente)* | MXN | Cuenta nueva, carpeta creada en Drive, parser/importer aún no existen. |
+| AFORE (Sura) | AFORE SURA | investment_formal | MXN | PDF de 1 página (`detalleMovimientos.pdf`, sin fecha en el nombre — la fecha real sale de "FECHA Y HORA DE EMISIÓN" dentro del PDF). Balance reportado como snapshot único en 4 subcuentas (Retiro, Vivienda, Voluntario, Saldo en tránsito) que suman exacto al "SALDO ACTUAL" impreso. La sección "MOVIMIENTOS EN TU CUENTA" (aportaciones INFONAVIT/patronal/IMSS) NO se parsea a `Transaction` a propósito — ya están incluidas en el saldo, y crear transacciones además del snapshot duplicaría el total (mismo error que se evitó con GBM). |
 
 ## Números ancla
 
@@ -86,11 +86,14 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
   puedo recuperar".
 - **Traspasos institucionales** (BBVA↔GBM/Bitso/Sura): mecanismo de detección pendiente,
   ver arriba.
-- **Categorización automática de gasto**: no existe todavía (`spending-by-category` day
-  de hoy regresa casi todo "Sin categoría"). Diseño de reglas ordenadas tipo
-  `docs/02-categorias.md` es el siguiente paso natural.
-- **AFORE (Sura)**: cuenta nueva sin parser. Estados aún no revisados — no asumir su
-  formato antes de abrir la carpeta.
+- **Categorización automática de gasto**: implementada (`app/rules.py`, `app/classify.py`),
+  validada contra datos reales de BBVA y AMEX. Cobertura parcial — sigue creciendo con
+  cada corte, per el propio principio del kit ("al tercer corte casi todo se clasifica
+  solo"). AMEX está excluida del matcher de traspasos por titular/RFC (ver regla dura
+  arriba) porque su CSV trae el nombre del dueño de tarjeta en cada renglón.
+- **Hard balance validation**: solo BBVA tiene el chequeo de "cuadra al centavo contra
+  el total impreso" + cadena de saldos entre estados. Los otros 7 parsers (AMEX,
+  Revolut, Bitso, GBM, Balagan, Optimax, Shareworks) no lo tienen todavía.
 
 ## Diferencias con el kit compartido (`docs/`)
 
