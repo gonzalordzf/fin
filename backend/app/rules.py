@@ -477,6 +477,38 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     # advierte justamente que hay personas de apellido Fierro que no son
     # Gonzalo, así que esto nunca debe tratarse como traspaso propio.
     (r"DANIEL RODRIGUEZ FIERRO", "Reembolsos"),
+    # Segundo lote (offset 60-140 en volumen de AMEX sin clasificar):
+    # restaurantes/bares identificables por nombre propio, no genéricos.
+    (r"\bMAIZAJO\b", "Restaurantes y Café"),  # taquería CDMX, ya cubierta con prefijo "COM RAP" — esta es la variante sin prefijo
+    (r"ROOFCHAPULTEPEC", "Restaurantes y Café"),  # rooftop bar, Chapultepec
+    (r"PRIME MASARYK", "Restaurantes y Café"),  # steakhouse, Masaryk CDMX
+    (r"GIAMPIETRO PIZZERIA", "Restaurantes y Café"),  # Breckenridge, viaje de esquí
+    (r"TST\* THE PROSPECTOR", "Restaurantes y Café"),  # Breckenridge, viaje de esquí
+    (r"LA FOLIE DOUCE", "Restaurantes y Café"),  # Val Thorens, viaje de esquí
+    (r"THE HOFF FUENCARRAL", "Restaurantes y Café"),  # bar de cerveza artesanal, Madrid
+    (r"RAW BAJA", "Restaurantes y Café"),  # Cabo San Lucas
+    (r"BARRA 33\b", "Restaurantes y Café"),
+    # Entretenimiento — torneos de tenis (US Open, BNP Paribas/Indian
+    # Wells) y mini-golf, todos nombres propios sin ambigüedad razonable.
+    (r"ARAMARK US OPEN", "Entretenimiento"),
+    (r"INDIAN WELLS TENNIS GAR", "Entretenimiento"),
+    (r"LEGENDS@BNP PARIBAS", "Entretenimiento"),
+    (r"TST\* PUTTSHACK", "Entretenimiento"),
+    # Cuidado Personal
+    (r"SALON GARDENIA", "Cuidado Personal"),
+    (r"DAAVA - TRAINING LAB", "Cuidado Personal"),
+    # Viajes — hospedaje, tren y equipo de esquí ligados a viajes ya vistos
+    # en otros comercios de la misma fecha/ciudad (Tahoe, Breckenridge).
+    (r"NTV TERMINI", "Viajes"),  # tren Italo, estación Termini, Roma
+    (r"TAHOEPOWDERHOUSE", "Viajes"),  # renta de equipo de esquí, South Lake Tahoe
+    (r"\bSKI SHOP\b", "Viajes"),  # el propio texto del comercio lo dice, sin adivinar la marca
+    (r"HACIENDA VISTA HERMOSA", "Viajes"),  # hotel/hacienda, Morelos
+    # Compras
+    (r"SCALPER STUDIO", "Compras"),  # marca mexicana de ropa
+    (r"HEAVENLY PATAGONIA", "Compras"),  # tienda Patagonia en resort de esquí Heavenly
+    # Alimentos y Supermercado
+    (r"\bLA COMER\b", "Alimentos y Supermercado"),
+    (r"TIENDA INGLESA", "Alimentos y Supermercado"),  # supermercado uruguayo
 ]
 
 
