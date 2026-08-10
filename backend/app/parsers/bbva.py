@@ -13,6 +13,16 @@ continuations that omit the header), classifying each amount into CARGOS
 vs ABONOS by which column's x-range its right-aligned edge falls in —
 verified against a real statement, since the two columns can visually
 overlap for wide numbers.
+
+Every statement also prints its own totals — "TOTAL IMPORTE CARGOS" /
+"TOTAL IMPORTE ABONOS" with movement counts (page with "Total de
+Movimientos"), and "Saldo Anterior" / "Saldo Final" (Información
+Financiera block). parse_bbva_statement() reconciles the parsed
+transactions against these before returning anything, per
+docs/04-gotchas.md: "cada estado cuadra al centavo contra su total
+impreso... si no cuadra, se para y se dice; no se estima." A parsing bug
+that silently drops or misclassifies a row now throws instead of quietly
+producing a wrong balance.
 """
 
 from __future__ import annotations
@@ -27,6 +37,15 @@ _DATE_RE = re.compile(r"^(\d{2})/([A-Zé]{3})$", re.IGNORECASE)
 _FULL_DATE_RE = re.compile(r"(\d{2})/(\d{2})/(\d{4})")
 _AMOUNT_RE = re.compile(r"^-?[\d,]+\.\d{2}$")
 _REFERENCIA_RE = re.compile(r"^\d{6,}$")
+
+_TOTAL_CARGOS_RE = re.compile(
+    r"TOTAL IMPORTE CARGOS\s+([\d,]+\.\d{2})\s+TOTAL MOVIMIENTOS CARGOS\s+(\d+)"
+)
+_TOTAL_ABONOS_RE = re.compile(
+    r"TOTAL IMPORTE ABONOS\s+([\d,]+\.\d{2})\s+TOTAL MOVIMIENTOS ABONOS\s+(\d+)"
+)
+_SALDO_ANTERIOR_RE = re.compile(r"Saldo Anterior\s+([\d,]+\.\d{2})")
+_SALDO_FINAL_RE = re.compile(r"Saldo Final\s+([\d,]+\.\d{2})")
 
 _MESES = {
     "ENE": 1, "FEB": 2, "MAR": 3, "ABR": 4, "MAY": 5, "JUN": 6,
@@ -58,6 +77,84 @@ class BBVATransaction:
     with no reference), so this — not the field values — is what makes
     re-importing the same file idempotent without merging distinct rows."""
     raw_lines: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BBVAStatement:
+    transactions: list[BBVATransaction]
+    period_start: datetime.date
+    period_end: datetime.date
+    saldo_anterior: float
+    saldo_final: float
+
+
+def _find_totals(text: str) -> tuple[float, float, int, float, int, float]:
+    """Returns (saldo_anterior, saldo_final, count_cargos, total_cargos,
+    count_abonos, total_abonos) as printed on the statement."""
+    cargos_m = _TOTAL_CARGOS_RE.search(text)
+    abonos_m = _TOTAL_ABONOS_RE.search(text)
+    saldo_ant_m = _SALDO_ANTERIOR_RE.search(text)
+    saldo_fin_m = _SALDO_FINAL_RE.search(text)
+    if not (cargos_m and abonos_m and saldo_ant_m and saldo_fin_m):
+        missing = [
+            name
+            for name, m in (
+                ("TOTAL IMPORTE CARGOS", cargos_m),
+                ("TOTAL IMPORTE ABONOS", abonos_m),
+                ("Saldo Anterior", saldo_ant_m),
+                ("Saldo Final", saldo_fin_m),
+            )
+            if m is None
+        ]
+        raise ValueError(
+            "Could not find printed totals in BBVA statement, cannot validate "
+            f"against printed figures: missing {', '.join(missing)}"
+        )
+    return (
+        float(saldo_ant_m.group(1).replace(",", "")),
+        float(saldo_fin_m.group(1).replace(",", "")),
+        int(cargos_m.group(2)),
+        float(cargos_m.group(1).replace(",", "")),
+        int(abonos_m.group(2)),
+        float(abonos_m.group(1).replace(",", "")),
+    )
+
+
+def _validate(
+    transactions: list[BBVATransaction],
+    saldo_anterior: float,
+    saldo_final: float,
+    count_cargos: int,
+    total_cargos: float,
+    count_abonos: int,
+    total_abonos: float,
+) -> None:
+    parsed_cargos = round(sum(-t.amount for t in transactions if t.amount < 0), 2)
+    parsed_abonos = round(sum(t.amount for t in transactions if t.amount > 0), 2)
+    parsed_count_cargos = sum(1 for t in transactions if t.amount < 0)
+    parsed_count_abonos = sum(1 for t in transactions if t.amount > 0)
+    parsed_delta = round(sum(t.amount for t in transactions), 2)
+    printed_delta = round(saldo_final - saldo_anterior, 2)
+
+    errors = []
+    if abs(parsed_cargos - total_cargos) > 0.01:
+        errors.append(f"cargos: parsed {parsed_cargos} vs printed {total_cargos}")
+    if abs(parsed_abonos - total_abonos) > 0.01:
+        errors.append(f"abonos: parsed {parsed_abonos} vs printed {total_abonos}")
+    if parsed_count_cargos != count_cargos:
+        errors.append(f"cargo count: parsed {parsed_count_cargos} vs printed {count_cargos}")
+    if parsed_count_abonos != count_abonos:
+        errors.append(f"abono count: parsed {parsed_count_abonos} vs printed {count_abonos}")
+    if abs(parsed_delta - printed_delta) > 0.01:
+        errors.append(
+            f"balance delta: movements sum to {parsed_delta} but "
+            f"Saldo Final - Saldo Anterior = {printed_delta}"
+        )
+    if errors:
+        raise ValueError(
+            "BBVA statement does not reconcile against its own printed totals: "
+            + "; ".join(errors)
+        )
 
 
 @dataclass
@@ -199,8 +296,9 @@ def _append_continuation(txn: BBVATransaction, line_words: list[dict]) -> None:
             txn.external_ref = rest[0]
 
 
-def parse_bbva_statement(path: str, password: str) -> list[BBVATransaction]:
+def parse_bbva_statement(path: str, password: str) -> BBVAStatement:
     transactions: list[BBVATransaction] = []
+    full_text_parts: list[str] = []
     with pdfplumber.open(path, password=password) as pdf:
         period_start = period_end = None
         for page in pdf.pages[:3]:
@@ -217,6 +315,7 @@ def parse_bbva_statement(path: str, password: str) -> list[BBVATransaction]:
         in_table = False
 
         for page in pdf.pages:
+            full_text_parts.append(page.extract_text() or "")
             words = page.extract_words()
             if columns is None:
                 columns = _find_columns(words)
@@ -242,4 +341,15 @@ def parse_bbva_statement(path: str, password: str) -> list[BBVATransaction]:
         if pending is not None:
             transactions.append(pending)
 
-    return transactions
+    saldo_anterior, saldo_final, count_cargos, total_cargos, count_abonos, total_abonos = (
+        _find_totals("\n".join(full_text_parts))
+    )
+    _validate(transactions, saldo_anterior, saldo_final, count_cargos, total_cargos, count_abonos, total_abonos)
+
+    return BBVAStatement(
+        transactions=transactions,
+        period_start=period_start,
+        period_end=period_end,
+        saldo_anterior=saldo_anterior,
+        saldo_final=saldo_final,
+    )

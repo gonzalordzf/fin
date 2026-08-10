@@ -134,6 +134,27 @@ class HoldingSnapshot(Base):
     account: Mapped[Account] = relationship(back_populates="snapshots")
 
 
+class StatementSummary(Base):
+    """The printed opening/closing balance of one imported statement, kept
+    so a later import can verify the balance chain: statement N's
+    saldo_anterior must equal statement N-1's saldo_final, or a statement is
+    missing between them (docs/04-gotchas.md — this is how a missing
+    statement gets caught instead of silently producing a wrong balance)."""
+
+    __tablename__ = "statement_summaries"
+    __table_args__ = (UniqueConstraint("account_id", "source_file", name="uq_statement_summary"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
+    source_file: Mapped[str]
+    period_start: Mapped[datetime.date]
+    period_end: Mapped[datetime.date]
+    saldo_anterior: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False))
+    saldo_final: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False))
+
+    account: Mapped[Account] = relationship()
+
+
 class EquityCompensationEntry(Base):
     """Shareworks: one row per vesting/contribution event."""
 
