@@ -8,10 +8,33 @@ AMEX itself provides:
   app/parsers/amex_pdf.py. Same "AMEX" Account, just a second on-ramp for
   history the CSV export doesn't reach.
 
-Both dedupe primarily by (account_id, external_ref) — unlike BBVA, AMEX's
-own reference is reliably unique per transaction within either format on its
-own. But the two formats' references are NOT the same value or scheme for
-the same real transaction (confirmed against real Aug-2024-era data: CSV's
+Dedup key is (external_ref, date, amount) — NOT external_ref alone.
+Confirmed against real data that AMEX reuses the same reference for more
+than one genuinely distinct real transaction:
+  - MSI ("Meses Sin Intereses") purchases: each monthly installment charge
+    of the same purchase plan carries the *same* reference every month,
+    with a different date each time (e.g. "AMAZON MX MSI MKT*AMAZO", ref
+    "3e28vo6yllAPV00CRZ7V", billed both 2023-05-31 and 2023-06-04 at the
+    same amount).
+  - Same-day fee + its IVA: a single real CSV row pair ("CUOTA ANUAL
+    MENSUALIDAD ..." + "IVA APLICABLE") shares one reference on the same
+    date but at two different amounts.
+  - A charge and its same-reference reversal/verification-hold release on a
+    different day (e.g. "RAPPI*VERIFICATIONS", ref
+    "37799402_20230624212", -14.27 on 06-25 then +14.27 on 06-26).
+Ref-alone dedup (the original implementation) silently dropped all of
+these as false "duplicates" — confirmed by re-parsing a single real
+statement and diffing against what actually got inserted. Adding date (and
+amount, for the same-day-same-ref case) to the key fixes all three without
+weakening real re-import idempotency, since a genuine re-import of the same
+file reproduces the exact same (ref, date, amount) for every row.
+
+Both formats additionally dedupe by (account_id, source_file, source_row)
+when a row has no reference at all (matches the DB's own uq_transaction_dedupe
+constraint), same as every other importer.
+
+The two formats' own references are NOT the same value or scheme for the
+same real transaction (confirmed against real Aug-2024-era data: CSV's
 "Referencia" is a quoted 'AT26...' banking-network reference; the PDF's
 "/REF..." is a merchant/processor auth code) — so at the boundary where a
 transaction could plausibly appear in both a CSV and a PDF, ref-matching
@@ -34,11 +57,17 @@ from app.parsers.amex import parse_amex_csv
 from app.parsers.amex_pdf import parse_amex_pdf_statement
 
 
-def _dedup_state(session, account_id: int) -> tuple[set[str], set[tuple], dict[tuple, set[str]]]:
-    """Returns (existing_refs, existing_rows, date_amount_to_extensions) for
-    every transaction already in this account, across both formats."""
+def _dedup_state(session, account_id: int) -> tuple[set[tuple], set[tuple], dict[tuple, set[str]]]:
+    """Returns (existing_ref_keys, existing_rows, date_amount_to_extensions)
+    for every transaction already in this account, across both formats.
+    existing_ref_keys is keyed by (external_ref, date, amount) — see module
+    docstring for why ref alone is not a safe key."""
     existing = list(session.query(Transaction).filter_by(account_id=account_id))
-    existing_refs = {t.external_ref for t in existing if t.external_ref is not None}
+    existing_ref_keys = {
+        (t.external_ref, t.date, round(t.amount, 2))
+        for t in existing
+        if t.external_ref is not None
+    }
     existing_rows = {
         (t.source_file, t.source_row) for t in existing if t.external_ref is None
     }
@@ -49,7 +78,7 @@ def _dedup_state(session, account_id: int) -> tuple[set[str], set[tuple], dict[t
         ext = os.path.splitext(t.source_file)[1].lower()
         key = (t.date, round(t.amount, 2))
         date_amount_to_exts.setdefault(key, set()).add(ext)
-    return existing_refs, existing_rows, date_amount_to_exts
+    return existing_ref_keys, existing_rows, date_amount_to_exts
 
 
 def _cross_format_duplicate(
@@ -68,11 +97,12 @@ def import_amex_csv(csv_path: str) -> int:
     inserted = 0
     with get_session() as session:
         account = session.query(Account).filter_by(name="AMEX").one()
-        existing_refs, existing_rows, date_amount_to_exts = _dedup_state(session, account.id)
+        existing_ref_keys, existing_rows, date_amount_to_exts = _dedup_state(session, account.id)
 
         for i, txn in enumerate(txns):
+            ref_key = (txn.external_ref, txn.purchase_date, round(txn.amount, 2))
             if txn.external_ref is not None:
-                if txn.external_ref in existing_refs:
+                if ref_key in existing_ref_keys:
                     continue
             elif (source_file, i) in existing_rows:
                 continue
@@ -92,7 +122,7 @@ def import_amex_csv(csv_path: str) -> int:
                 )
             )
             if txn.external_ref is not None:
-                existing_refs.add(txn.external_ref)
+                existing_ref_keys.add(ref_key)
             date_amount_to_exts.setdefault((txn.purchase_date, round(txn.amount, 2)), set()).add(this_ext)
             inserted += 1
         session.commit()
@@ -109,11 +139,12 @@ def import_amex_pdf_statement(pdf_path: str) -> int:
     inserted = 0
     with get_session() as session:
         account = session.query(Account).filter_by(name="AMEX").one()
-        existing_refs, existing_rows, date_amount_to_exts = _dedup_state(session, account.id)
+        existing_ref_keys, existing_rows, date_amount_to_exts = _dedup_state(session, account.id)
 
         for txn in stmt.transactions:
+            ref_key = (txn.external_ref, txn.date, round(txn.amount, 2))
             if txn.external_ref is not None:
-                if txn.external_ref in existing_refs:
+                if ref_key in existing_ref_keys:
                     continue
             elif (source_file, txn.row_index) in existing_rows:
                 continue
@@ -133,7 +164,7 @@ def import_amex_pdf_statement(pdf_path: str) -> int:
                 )
             )
             if txn.external_ref is not None:
-                existing_refs.add(txn.external_ref)
+                existing_ref_keys.add(ref_key)
             date_amount_to_exts.setdefault((txn.date, round(txn.amount, 2)), set()).add(this_ext)
             inserted += 1
         session.commit()
