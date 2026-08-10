@@ -562,6 +562,19 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     (r"ULTRAMARINOS DE FRAN", "Alimentos y Supermercado"),
     # Cuidado Personal
     (r"KOTI WELLNESS", "Cuidado Personal"),
+    # Cuarto lote: comercios de menor volumen individual pero identificables
+    # sin ambigüedad razonable.
+    (r"OPENAI \*CHATGPT SUBSCR", "Servicios y Suscripciones"),
+    (r"OPENPAY\*DIDIFOODMX", "Delivery"),
+    (r"REVES PADEL", "Entretenimiento"),
+    (r"FIRE \+ ICE", "Restaurantes y Café"),  # South Lake Tahoe, viaje de esquí
+    (r"LA DOCENA ROMA", "Restaurantes y Café"),  # ostionería, CDMX
+    (r"\bMEROMA\b", "Restaurantes y Café"),  # CDMX
+    (r"\bOSAKA\b", "Restaurantes y Café"),  # José Ignacio, Uruguay
+    (r"LA BARRA DE FRAN", "Restaurantes y Café"),
+    (r"IKANO RETAIL MEXICO", "Compras"),  # IKEA México
+    (r"SIERRA #0096", "Compras"),  # outlet, Silverthorne
+    (r"SAMS VENTA EN LINEA", "Alimentos y Supermercado"),
 ]
 
 
