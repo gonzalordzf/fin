@@ -122,6 +122,23 @@ class BalaganStatement:
         return self.revenue - self.net_income
 
 
+def _validate(net_income: float, proportional_income: float) -> None:
+    """Repartición por punto should be ~PARTICIPATION_PCT of net_income —
+    both are independently parsed from the same statement, so this catches
+    a bad extraction even though it isn't a "printed total" in the BBVA
+    sense. Tolerance is $1, not a cent: verified against 3 real months
+    that "Repartición por punto" is itself printed pre-rounded to whole
+    pesos (2,390 / 5,187 / 3,002), so up to ~$0.50 of drift from the exact
+    percentage is expected, not an error."""
+    expected = net_income * PARTICIPATION_PCT
+    if abs(proportional_income - expected) > 1.0:
+        raise ValueError(
+            "Balagan statement does not reconcile: Repartición por punto "
+            f"{proportional_income} is not ~{PARTICIPATION_PCT:.0%} of net_income {net_income} "
+            f"(expected ~{expected:.2f})"
+        )
+
+
 def parse_balagan_statement(path: str) -> BalaganStatement:
     with pdfplumber.open(path) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
@@ -130,6 +147,7 @@ def parse_balagan_statement(path: str) -> BalaganStatement:
     revenue = _find_amount(text, "Total de ingresos.")
     net_income = _find_amount(text, "Utilidad de operación despues de impuestos")
     proportional_income = _find_amount(text, "Repartición por punto")
+    _validate(net_income, proportional_income)
 
     return BalaganStatement(
         period_start=period_start,
