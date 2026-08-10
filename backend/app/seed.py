@@ -68,6 +68,14 @@ INCOME_CATEGORIES = [
 TRANSFER_CATEGORIES = [
     "Transferencia entre Cuentas Propias",
     "Pago de Tarjeta de Crédito",
+    # Not a self-transfer, but economically the same non-event for a
+    # personal-spend analysis: buying World Cup 2026 tickets on behalf of
+    # a group of friends and getting reimbursed by SPEI is a pass-through,
+    # not real income or expense. Confirmed by the user against real BBVA
+    # "PAGO CUENTA DE TERCERO" memos (boletos/Mundial/FIFA/FWC, Apr-Jul
+    # 2026) — kind=TRANSFER so it's excluded from spending-by-category the
+    # same way self-transfers already are.
+    "Boletos Mundial (Terceros)",
 ]
 
 
