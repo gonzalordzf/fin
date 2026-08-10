@@ -415,9 +415,32 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     (r"PALACE RESORTS", "Viajes"),
     (r"\bHERTZ\b", "Viajes"),
     (r"VAIL SKI PASS|VAL THORENS", "Viajes"),
+    # Aerolíneas y hoteles (bloque agregado al ampliar el historial de AMEX
+    # a 2023-2026) — marcas globales, sin ambigüedad razonable.
+    (r"VUELING|ITA AIRWAYS|EASYJET|IBERIA\.COM|LATAM AIRLINES", "Viajes"),
+    (r"EUROSTARS|LIVE AQUA|HOTEL HAMPTON|HOTEL MIRAMAR", "Viajes"),
+    (r"AIRALO", "Viajes"),  # eSIM de datos para viajar
+    (r"WORLD DUTY FREE|DUTY FREE WALKTHROUGH", "Viajes"),
+    # Ropa y calzado — marcas globales
+    (r"MASSIMO DUTTI|GUTTERIDGE|\bZARA\b|LULULEMON|AMERICAN EAGLE", "Compras"),
+    (r"\bNIKE\b|PAYPAL \*PUMAMEXICOS|\bON INC\b", "Compras"),
+    (r"AMZN MKTP|PALACIODEHIERRO|MERCADO LIBRE|TEMU\.COM", "Compras"),
+    # Salud — hospitales, laboratorios y consultorios reales
+    (r"HOSPITAL ANGELES|LAB MEDICO DEL CHOPO|MED CENTRO DE FISIOTERA", "Salud"),
+    (r"DR GABRIEL ARRIOLA", "Salud"),
+    # Gasolineras
+    (r"GASOLINERA|PITS GAS EST", "Transporte"),
     # Restaurantes (bloque tardío: comercios confirmados al ampliar el
     # historial de AMEX a 2023-2026)
     (r"AMIGAS CONDESA", "Restaurantes y Café"),
+    (r"GOCCIA|RISTORANTE CUCINA TORCI", "Restaurantes y Café"),  # Florencia
+    (r"BLACK'?S PUB|HY'?S STEAKHOUSE|BRIAR ROSE CHOPHOUSE", "Restaurantes y Café"),
+    (r"MAREA FISHERS|LA NAVAL|CANTINA DEL BOSQUE", "Restaurantes y Café"),
+    (r"NETPAY\*TAQUERIA ORINOCO|NETPAY\*BARRA GRANA", "Restaurantes y Café"),
+    (r"VIVA\*CERVEJARIA|VIVA\*BOSCO", "Restaurantes y Café"),  # Lisboa/Porto
+    # Entretenimiento — boletos y vida nocturna
+    (r"VIAGOGO|ATG TICKETS", "Entretenimiento"),
+    (r"SPACE CLUB|\bBRESH\b|TEATRO .*ENTERTAINMEN", "Entretenimiento"),
     # El restaurante en el que el usuario es inversionista — consumo propio
     # en el local, no tiene relación con la aportación de capital (esa vive
     # en AlternativeInvestmentEntry, no en Transaction, así que no colisiona).
