@@ -21,7 +21,7 @@ import unicodedata
 
 from sqlalchemy.orm import Session
 
-from app.models import Category, CategoryKind, Transaction
+from app.models import Account, Category, CategoryKind, Transaction
 
 TRANSFER_NAME_PATTERNS: list[str] = [
     r"ROFG950407NCA",
@@ -37,6 +37,17 @@ fields. Matched accent-stripped and case-insensitive, never against the
 destination bank."""
 
 _TRANSFER_CATEGORY_NAME = "Transferencia entre Cuentas Propias"
+
+_TRANSFER_INELIGIBLE_ACCOUNTS = {"AMEX"}
+"""Accounts where matching the account holder's own name produces
+guaranteed false positives, not a transfer signal. Found on real data:
+AMEX's raw_description serializes the full CSV row, including a "Titular
+de la Tarjeta" field that holds the cardholder's own name on EVERY single
+transaction (it's card-ownership metadata, never a transfer recipient) —
+this wrongly tagged 103 of 104 real purchases as self-transfers before
+this exclusion existed. Bank/SPEI-style accounts (BBVA, Revolut, Bitso,
+GBM) only include a name in their raw description when it's genuinely a
+transfer party, so they don't need this guard."""
 
 
 def _strip_accents(text: str) -> str:
@@ -60,8 +71,17 @@ def classify_transfers(session: Session) -> int:
     )
     pattern = re.compile("|".join(TRANSFER_NAME_PATTERNS), re.IGNORECASE)
 
+    query = (
+        session.query(Transaction)
+        .join(Account)
+        .filter(
+            Transaction.category_id.is_(None),
+            Account.name.notin_(_TRANSFER_INELIGIBLE_ACCOUNTS),
+        )
+    )
+
     matched = 0
-    for txn in session.query(Transaction).filter(Transaction.category_id.is_(None)):
+    for txn in query:
         # BBVA's `description` column is deliberately just the first line
         # (see parsers/bbva.py) — the SPEI beneficiary name lives on a
         # continuation line, preserved only in raw_description. Matching

@@ -17,6 +17,7 @@ from app.classify import classify_transfers
 from app.db import get_session, init_db
 from app.importers import amex, balagan, bbva, bitso, gbm, optimax, revolut, shareworks
 from app.parsers import balagan as balagan_parser
+from app.rules import classify_merchants
 from app.models import (
     Account,
     AlternativeInvestmentEntry,
@@ -83,12 +84,14 @@ def trigger_import(account: str) -> dict:
 
 @app.post("/classify")
 def trigger_classify() -> dict:
-    """Runs rule-based classification (currently: self-transfer detection by
-    titular/RFC) over every uncategorized transaction. Idempotent and safe
-    to call repeatedly, including after new imports."""
+    """Runs rule-based classification over every uncategorized transaction:
+    self-transfers by titular/RFC first (most certain), then card
+    autopay/refund/investment-institution/payroll/merchant rules. Idempotent
+    and safe to call repeatedly, including after new imports."""
     with get_session() as session:
-        matched = classify_transfers(session)
-    return {"transfers_classified": matched}
+        transfers = classify_transfers(session)
+        merchants = classify_merchants(session)
+    return {"transfers_classified": transfers, "merchants_classified": merchants}
 
 
 @app.get("/accounts")

@@ -28,6 +28,7 @@ EXPENSE_CATEGORIES = [
     "Transporte",
     "Alimentos y Supermercado",
     "Restaurantes y Café",
+    "Delivery",
     "Entretenimiento",
     "Salud",
     "Viajes",
@@ -36,8 +37,17 @@ EXPENSE_CATEGORIES = [
     "Educación",
     "Cuidado Personal",
     "Impuestos y Comisiones Bancarias",
+    "Efectivo (ATM)",
+    "Inversión",
     "Otros Gastos",
 ]
+"""'Delivery' separado de 'Restaurantes y Café', 'Efectivo (ATM)' e
+'Inversión' agregadas — las tres validadas contra estados reales (Rappi/Uber
+Eats, 'RETIRO SIN TARJETA' en BBVA, y aportaciones/rescates hacia
+GBM/Bitso/Optimax/Sura respectivamente). 'Inversión' es Necesario y no
+gasto recortable per docs/02-categorias.md — no se resta del patrimonio,
+solo se excluye de gasto discrecional una vez que exista la capa de
+naturaleza (#19)."""
 
 INCOME_CATEGORIES = [
     "Nómina",
