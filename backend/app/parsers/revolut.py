@@ -10,8 +10,12 @@ Monto — verified against two real statements.
 Revolut's sign convention is inverted from ours (like AMEX): positive
 Monto = cargo/charge, negative = abono/payment or credit. We negate it
 so negative = money out (expense), consistent with every other importer.
-Confirmed against the statement's own "Total cargos"/"Total abonos"
-figures.
+
+Every statement prints its own "Total cargos" / "Total abonos" right
+after the transaction table (in Revolut's own, pre-negation sign
+convention) — parse_revolut_statement() reconciles the parsed
+transactions against these before returning, same discipline as BBVA:
+raise instead of silently trusting the extraction.
 """
 
 from __future__ import annotations
@@ -29,6 +33,8 @@ _MESES = {
 _MONTH_RE = "|".join(_MESES)
 _DATE_RE = re.compile(rf"^(\d{{1,2}})\s+({_MONTH_RE})\s+(\d{{4}})$", re.IGNORECASE)
 _AMOUNT_RE = re.compile(r"^[+-]\$[\d,]+\.\d{2}$")
+_TOTAL_CARGOS_RE = re.compile(r"Total cargos\s+([+-]\$[\d,]+\.\d{2})")
+_TOTAL_ABONOS_RE = re.compile(r"Total abonos\s+([+-]\$[\d,]+\.\d{2})")
 
 # Column boundaries in the "Cargos, abonos y compras regulares" table,
 # verified via word x0 coordinates against real statements.
@@ -50,6 +56,40 @@ class RevolutTransaction:
 
 def _parse_fecha(day: str, mon: str, year: str) -> datetime.date:
     return datetime.date(int(year), _MESES[mon.lower()], int(day))
+
+
+def _parse_signed_money(text: str) -> float:
+    sign = -1.0 if text.startswith("-") else 1.0
+    return sign * float(text.lstrip("+-$").replace(",", ""))
+
+
+def _validate(transactions: list[RevolutTransaction], text: str) -> None:
+    cargos_m = _TOTAL_CARGOS_RE.search(text)
+    abonos_m = _TOTAL_ABONOS_RE.search(text)
+    if not (cargos_m and abonos_m):
+        missing = [n for n, m in (("Total cargos", cargos_m), ("Total abonos", abonos_m)) if m is None]
+        raise ValueError(
+            f"Could not find printed totals in Revolut statement, cannot validate: {', '.join(missing)}"
+        )
+    printed_cargos = _parse_signed_money(cargos_m.group(1))
+    printed_abonos = _parse_signed_money(abonos_m.group(1))
+
+    # Our amount is negated from Revolut's own convention (see module
+    # docstring), so re-negating gets back to Revolut's own sign to compare
+    # directly against what's printed.
+    parsed_cargos = round(sum(-t.amount for t in transactions if t.amount < 0), 2)
+    parsed_abonos = round(sum(-t.amount for t in transactions if t.amount > 0), 2)
+
+    errors = []
+    if abs(parsed_cargos - printed_cargos) > 0.01:
+        errors.append(f"cargos: parsed {parsed_cargos} vs printed {printed_cargos}")
+    if abs(parsed_abonos - printed_abonos) > 0.01:
+        errors.append(f"abonos: parsed {parsed_abonos} vs printed {printed_abonos}")
+    if errors:
+        raise ValueError(
+            "Revolut statement does not reconcile against its own printed totals: "
+            + "; ".join(errors)
+        )
 
 
 def _group_lines(words: list[dict]) -> list[list[dict]]:
@@ -76,11 +116,13 @@ def _try_parse_date_group(words: list[dict]) -> datetime.date | None:
 
 def parse_revolut_statement(path: str) -> list[RevolutTransaction]:
     transactions: list[RevolutTransaction] = []
+    full_text_parts: list[str] = []
     with pdfplumber.open(path) as pdf:
         in_table = False
         pending: RevolutTransaction | None = None
 
         for page in pdf.pages:
+            full_text_parts.append(page.extract_text() or "")
             words = page.extract_words()
             if not in_table and not any(
                 w["text"] == "Descripción" for w in words
@@ -137,4 +179,5 @@ def parse_revolut_statement(path: str) -> list[RevolutTransaction]:
         if pending is not None:
             transactions.append(pending)
 
+    _validate(transactions, "\n".join(full_text_parts))
     return transactions
