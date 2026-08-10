@@ -147,8 +147,13 @@ _RENT_CATEGORY = "Vivienda"
 # el dato no dice de qué fueron, y adivinar es justo lo que este proyecto
 # no hace. Aparecen en "Sin categoría" para revisión manual.
 DATED_PERSON_RULES: list[tuple[str, str, datetime.date | None, datetime.date | None]] = [
-    (r"EUGENIA\s+GONZALEZ", "Vivienda", None, datetime.date(2024, 11, 30)),
-    (r"MARENTES", "Vivienda", None, datetime.date(2024, 11, 30)),
+    # Eugenia González y José Manuel Marentes NO se identifican por nombre:
+    # sus depósitos de renta entran como traspasos internos de BBVA, donde
+    # el estado solo imprime "BNET <id>" y nunca el nombre. En todo el
+    # historial hay apenas 5 movimientos con sus nombres, y ninguno es
+    # renta — el único que macheaba era una quiniela de $750 que esta misma
+    # regla metía por error a Vivienda. Se identifican por su cuenta BNET,
+    # ver ROOMMATE_ACCOUNT_RULES.
     # Roomie de ene-ago 2023, NO el arrendador: él le pagaba al dueño y
     # Gonzalo le transfería su parte (8 pagos, $15,450 bajando a $12,000,
     # memos "Renta"/"La fija"). Sin esta regla 2023 reportaba $2,237/mes
@@ -162,6 +167,45 @@ DATED_PERSON_RULES: list[tuple[str, str, datetime.date | None, datetime.date | N
     # clasificar para revisión, que es lo correcto: el dato no dice qué son.
     (r"ARREOLA", "Vivienda", None, datetime.date(2023, 12, 31)),
 ]
+
+
+# Roomies identificados por su cuenta interna de BBVA (BNET), no por
+# nombre: los traspasos entre cuentas BBVA no imprimen al remitente, así
+# que el id es la única señal estable de quién es.
+#
+# El id solo no basta —un roomie también manda dinero por otras razones
+# ("Tahoe", "Splitwise", "Padel")— así que además se exige que el memo
+# parezca renta: la palabra renta, un nombre de mes, o una fracción de
+# mes. Los memos reales son irregulares y por eso `RENTA\b` sola fallaba:
+# "1ra Mayo", "Mayo 2", "Julio", "Mitad Agosto y wifi", "Sept 1ra parte",
+# "2Q Sept y servicios", "Renta1" (donde el dígito pegado rompe \b).
+#
+# Ventanas confirmadas contra los movimientos reales:
+#   1537142938  Roy, roomie continuo desde ago-2023
+#   1539193445  roomie abr-jul 2024, $6,250 quincenales
+#   2631246879  Eugenia González (confirmado por "Transf a EUGENIA A")
+ROOMMATE_ACCOUNT_RULES: list[tuple[str, datetime.date | None, datetime.date | None]] = [
+    ("1537142938", datetime.date(2023, 8, 1), None),
+    ("1539193445", datetime.date(2024, 4, 1), datetime.date(2024, 7, 31)),
+    ("2631246879", datetime.date(2024, 7, 1), datetime.date(2024, 11, 30)),
+]
+
+_RENT_MEMO_RE = re.compile(
+    r"RENTA|MITAD|MEDIA|\b1RA\b|\b2Q\b|PARTE|"
+    r"ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPT|OCTUBRE|NOVIEMBRE|DICIEMBRE",
+    re.IGNORECASE,
+)
+
+
+def _roommate_rent_match(text: str, when: datetime.date) -> str | None:
+    for bnet_id, valid_from, valid_until in ROOMMATE_ACCOUNT_RULES:
+        if valid_from is not None and when < valid_from:
+            continue
+        if valid_until is not None and when > valid_until:
+            continue
+        if f"BNET {bnet_id}" in text and _RENT_MEMO_RE.search(text):
+            return _RENT_CATEGORY
+    return None
 
 
 def _first_dated_match(text: str, when: datetime.date) -> str | None:
@@ -333,6 +377,8 @@ def classify_merchants(session: Session) -> int:
         # se irá a Vivienda de todos modos, pero por lo que dice el propio
         # movimiento y no por quién es la contraparte — que es justo la
         # distinción que se quería.
+        if category_name is None:
+            category_name = _roommate_rent_match(haystack, txn.date)
         if category_name is None:
             category_name = _first_dated_match(haystack, txn.date)
         if category_name is None:
