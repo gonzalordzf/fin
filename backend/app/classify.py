@@ -17,17 +17,32 @@ known — never guess or infer them.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from sqlalchemy.orm import Session
 
 from app.models import Category, CategoryKind, Transaction
 
-TRANSFER_NAME_PATTERNS: list[str] = []
-"""Regexes (case/accent-insensitive) matched against Transaction.description.
-Each should identify the transfer's recipient as the account holder — their
-full name or RFC — not the destination bank or institution name."""
+TRANSFER_NAME_PATTERNS: list[str] = [
+    r"ROFG950407NCA",
+    r"ROFG950407",
+    r"GONZALO\s+RODRIGUEZ\s+FIERRO",
+    r"RODRIGUEZ\s+FIERRO\s+GONZALO",
+]
+"""User-provided (Gonzalo Rodríguez Fierro, RFC ROFG950407NCA) — the RFC
+without homoclave is included too since some statements truncate it (same
+convention already confirmed for BBVA/GBM document passwords). Name
+patterns cover both name-order conventions banks use for SPEI beneficiary
+fields. Matched accent-stripped and case-insensitive, never against the
+destination bank."""
 
 _TRANSFER_CATEGORY_NAME = "Transferencia entre Cuentas Propias"
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
+    )
 
 
 def classify_transfers(session: Session) -> int:
@@ -47,7 +62,12 @@ def classify_transfers(session: Session) -> int:
 
     matched = 0
     for txn in session.query(Transaction).filter(Transaction.category_id.is_(None)):
-        if pattern.search(txn.description):
+        # BBVA's `description` column is deliberately just the first line
+        # (see parsers/bbva.py) — the SPEI beneficiary name lives on a
+        # continuation line, preserved only in raw_description. Matching
+        # description alone would never catch a single real BBVA transfer.
+        haystack = f"{txn.raw_description or ''} {txn.description}"
+        if pattern.search(_strip_accents(haystack)):
             txn.category_id = category.id
             matched += 1
     session.commit()
