@@ -78,15 +78,25 @@ INCOME_RULES: list[tuple[str, str]] = [
 KNOWN_PERSON_RULES: list[tuple[str, str]] = [
     (r"REMIS", "Salud"),  # Begoña Remis — psicóloga, recurring
     (r"BATIZ", "Vivienda"),  # Ceci Batiz — renta del depto, recurring
+    (r"CASTILLO MEADE", "Regalos"),  # Maria Luis Castillo Meade — regalo de boda, one-off
 ]
 
-# World Cup 2026 ticket purchases made on behalf of a group of friends,
-# reimbursed by SPEI — a pass-through, not real income or expense (see
-# "Boletos Mundial (Terceros)" in seed.py, kind=TRANSFER). Matched only on
-# unambiguous markers confirmed against real memos; vaguer ones ("gonzalo",
-# "Y SI Si") are left uncategorized rather than guessed.
-WORLD_CUP_PATTERNS: list[str] = [r"MUNDIAL", r"\bFIFA\b", r"\bFWC\b"]
-_WORLD_CUP_CATEGORY = "Boletos Mundial (Terceros)"
+# World Cup 2026: ticket purchases (mostly from Federación Mexicana de
+# Fútbol) and reimbursements from the friend group that paid Gonzalo back.
+# One category, kind=EXPENSE, covers both directions on purpose — the
+# outflow (buying tickets) and the inflow (getting reimbursed) are tagged
+# the same, so /spending-by-category's amount<0 filter naturally nets out
+# to only the real personal cost (confirmed against real data: of
+# $698,370 paid to the Federación across 3 statements, $672,386 came back
+# from named reimbursers, leaving ~$25,984 that was genuinely Gonzalo's
+# own tickets — that residual is what should show as "gasto", not the
+# gross $698,370). Matched only on unambiguous markers confirmed against
+# real memos; vaguer ones ("gonzalo", "Y SI Si") are left uncategorized
+# rather than guessed.
+WORLD_CUP_PATTERNS: list[str] = [
+    r"MUNDIAL", r"\bFIFA\b", r"\bFWC\b", r"FEDERACION MEXICANA DE FUTBOL",
+]
+_WORLD_CUP_CATEGORY = "Mundial"
 
 MERCHANT_RULES: list[tuple[str, str]] = [
     # Transporte

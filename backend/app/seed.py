@@ -48,6 +48,18 @@ EXPENSE_CATEGORIES: list[tuple[str, CategoryNature | None]] = [
     ("Impuestos y Comisiones Bancarias", CategoryNature.BASICO),
     ("Efectivo (ATM)", CategoryNature.NECESARIO),
     ("Inversión", CategoryNature.NECESARIO),
+    # Mundial 2026: kind=EXPENSE on purpose, unlike the self-transfer/
+    # pass-through categories below — real ticket purchases (mostly SPEI
+    # to Federación Mexicana de Fútbol) AND the reimbursements from the
+    # friend group who paid Gonzalo back are both tagged here. Since
+    # /spending-by-category only sums amount<0 rows, the reimbursements
+    # (positive) don't count as gasto, so this nets to the real personal
+    # cost automatically instead of the gross ticket price — confirmed
+    # against real data: $698,370 paid, $672,386 reimbursed, ~$25,984
+    # actually Gonzalo's own tickets. Also covers AMEX charges made at
+    # the stadiums themselves, not just the tickets.
+    ("Mundial", CategoryNature.ESTILO_DE_VIDA),
+    ("Regalos", CategoryNature.ESTILO_DE_VIDA),
     ("Otros Gastos", None),
 ]
 """'Delivery' separado de 'Restaurantes y Café', 'Efectivo (ATM)' e
@@ -68,14 +80,6 @@ INCOME_CATEGORIES = [
 TRANSFER_CATEGORIES = [
     "Transferencia entre Cuentas Propias",
     "Pago de Tarjeta de Crédito",
-    # Not a self-transfer, but economically the same non-event for a
-    # personal-spend analysis: buying World Cup 2026 tickets on behalf of
-    # a group of friends and getting reimbursed by SPEI is a pass-through,
-    # not real income or expense. Confirmed by the user against real BBVA
-    # "PAGO CUENTA DE TERCERO" memos (boletos/Mundial/FIFA/FWC, Apr-Jul
-    # 2026) — kind=TRANSFER so it's excluded from spending-by-category the
-    # same way self-transfers already are.
-    "Boletos Mundial (Terceros)",
 ]
 
 
