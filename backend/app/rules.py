@@ -622,6 +622,7 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     # antro "Draggaret" — confirmación de baja certeza ("me suena a que"),
     # documentada por si aparece con otro nombre de comercio más adelante.
     (r"BILLPOCKET\*D I S C O T", "Entretenimiento"),  # antro (Draggaret), Pachuca
+    (r"MARIAJ LOS CABOS", "Restaurantes y Café"),  # restaurante, confirmado por el usuario — comido durante un viaje a Los Cabos
 ]
 
 
