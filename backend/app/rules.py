@@ -616,6 +616,12 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     # no ingreso ni compra. "CORPORATI" no colisiona con las variantes de
     # arriba (EXP CIB / EXPORT MEXICO / AOC / ATLANTA / LAS VEGAS).
     (r"COCA COLA EXPORT CORPORATI", "Reembolsos"),
+    (r"DINSMOOR MEXICO", "Entretenimiento"),  # antro, confirmado por el usuario
+    (r"\bAZIA MEXICO\b", "Restaurantes y Café"),  # restaurante, confirmado por el usuario
+    # El usuario no recordaba el nombre del comercio pero sí que era el
+    # antro "Draggaret" — confirmación de baja certeza ("me suena a que"),
+    # documentada por si aparece con otro nombre de comercio más adelante.
+    (r"BILLPOCKET\*D I S C O T", "Entretenimiento"),  # antro (Draggaret), Pachuca
 ]
 
 
