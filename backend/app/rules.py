@@ -623,6 +623,34 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     # documentada por si aparece con otro nombre de comercio más adelante.
     (r"BILLPOCKET\*D I S C O T", "Entretenimiento"),  # antro (Draggaret), Pachuca
     (r"MARIAJ LOS CABOS", "Restaurantes y Café"),  # restaurante, confirmado por el usuario — comido durante un viaje a Los Cabos
+    # Sexto lote: identificados por búsqueda web (nombre de comercio + ciudad
+    # cruzado contra directorios de restaurantes/negocios reales), a pedido
+    # del usuario. Solo se incluyen los que la búsqueda confirmó con
+    # razonable certeza — varios nombres genéricos (Porter México, Altavista,
+    # Nala, SP Dossier, Sala Virgen, AYF Antara, La Isla Punta del Este, CE
+    # Queretaro Jurica) quedaron fuera por tener múltiples negocios reales
+    # con el mismo nombre sin forma de distinguir cuál es.
+    (r"BILLPOCKET\*FUGU", "Restaurantes y Café"),  # sushi, CDMX
+    (r"PAROLE CDMX", "Restaurantes y Café"),  # italiano, Polanco
+    (r"FRESKO AVANDARO", "Alimentos y Supermercado"),  # tienda/abarrotes, Valle de Bravo — NO restaurante
+    (r"SUPPLI II", "Restaurantes y Café"),  # trattoria italiana, Colonia Juárez
+    (r"TIENDA LIVU", "Regalos"),  # plataforma de regalos (créditos/regalo), mismo perfil que Zepika
+    (r"CASA OLIMPIA RES", "Restaurantes y Café"),  # mediterráneo, Polanco
+    (r"BASEBYRENGMZ", "Cuidado Personal"),  # membresía de app de fitness (Base by Ren)
+    (r"SENS ARCOS MEXICO", "Entretenimiento"),  # antro, Arcos Bosques
+    (r"DASAHIPICO", "Entretenimiento"),  # club hípico, Valle de Bravo
+    (r"ROCA CIUDAD DE MEX", "Restaurantes y Café"),  # Roca Ostrería y Parrilla, Lomas de Chapultepec
+    (r"OPERADORA DOLCE TANGO", "Restaurantes y Café"),  # restaurantera, Condesa
+    (r"BILLPOCKET\*CENTANNI", "Restaurantes y Café"),  # italiano, San Miguel de Allende
+    (r"BILLPOCKET\*CARA DE VACA", "Restaurantes y Café"),  # parrilla norteña, San Pedro Garza García
+    (r"BUHO GALLO", "Restaurantes y Café"),  # Gallobúho, Madrid
+    (r"DISCOLAB XO SAS", "Restaurantes y Café"),  # bar/restaurante, Cartagena
+    (r"MERCADOPAGO\*SEVENVINTAG", "Compras"),  # ropa vintage/segunda mano, CDMX
+    (r"MERCADOPAGO\*CHATEAUPOLA", "Entretenimiento"),  # Chateau Piano Bar, Polanco
+    (r"SRPAGO\*BUDAMAR", "Viajes"),  # hotel de playa, Zipolite
+    (r"NETPAY\*EL LUCERO", "Restaurantes y Café"),  # cantina, Mérida
+    (r"NETPAY\*YORU", "Restaurantes y Café"),  # sushi, Roma Norte
+    (r"ESPACO RUBRO NEGRO", "Compras"),  # tienda oficial del Flamengo, Rio de Janeiro
 ]
 
 
