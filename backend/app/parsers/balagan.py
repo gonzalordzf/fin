@@ -43,7 +43,10 @@ INITIAL_INVESTMENT_MXN = 75000.0
 (Setenta y cinco mil pesos 00/100 Moneda Nacional)". Not derivable from any
 monthly Estado de Resultados — those only report period income, never
 this one-time capital contribution — so it's a constant here rather than
-parsed."""
+parsed. Confirmed against the real funding wire: BBVA SPEI ENVIADO BANORTE,
+02-dic-2024, $75,000.00, memo "inversion Gonzalo", beneficiary "RIVER SA DE
+CV" — user-confirmed as Balagan's razón social (app/rules.py tags this
+transaction "Inversión" by its SPEI reference)."""
 
 _MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,

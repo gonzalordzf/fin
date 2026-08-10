@@ -180,6 +180,14 @@ DATED_PERSON_RULES: list[tuple[str, str, datetime.date | None, datetime.date | N
     # y NO se suma al balance de la cuenta (que se queda al valor nominal
     # del contrato, no se sabe si el resto se cobra).
     (r"0117384335", "Ingreso por Inversión", datetime.date(2025, 7, 20), datetime.date(2025, 7, 31)),
+    # Aportación de capital a Balagan (ver app/parsers/balagan.py,
+    # INITIAL_INVESTMENT_MXN): SPEI ENVIADO BANORTE, 02-dic-2024, $75,000,
+    # memo "inversion Gonzalo", beneficiario "RIVER SA DE CV" — confirmado
+    # por el usuario como la razón social de Balagan. Va a "Inversión" igual
+    # que las aportaciones a GBM/Bitso, matcheado por referencia SPEI para
+    # no depender de la palabra "RIVER" (demasiado genérica para usarse
+    # sola).
+    (r"0073972356", "Inversión", datetime.date(2024, 12, 1), datetime.date(2024, 12, 31)),
 ]
 
 # Viaje a Colombia, dic-2023: Gonzalo pagó $95,000 (+ $344.43 comisión +
@@ -280,9 +288,20 @@ _WORLD_CUP_OPENING_REF_RE = re.compile(r"0040561816")
 # tener que listar nombres.
 _WORLD_CUP_TICKET_PRICE = 20195.00
 
+# Tres SPEI RECIBIDOSTP grandes de 2026 (may/jul) sin nombre de beneficiario
+# capturado por el PDF de BBVA — el usuario los confirmó como parte del
+# reembolso/pago del Mundial, sin poder precisar de cuál boleto o de quién
+# exactamente. Igual que la ceremonia inaugural, se matchean por referencia
+# SPEI (la única señal disponible) en vez de por texto, que aquí ni existe.
+_WORLD_CUP_STP_REFS_RE = re.compile(r"0100594788|0127990873|0153962721")
+
 
 def _world_cup_memo_match(text: str, when: datetime.date, amount: float) -> str | None:
-    if _WORLD_CUP_REF_RE.search(text) or _WORLD_CUP_OPENING_REF_RE.search(text):
+    if (
+        _WORLD_CUP_REF_RE.search(text)
+        or _WORLD_CUP_OPENING_REF_RE.search(text)
+        or _WORLD_CUP_STP_REFS_RE.search(text)
+    ):
         return _WORLD_CUP_CATEGORY
     lo, hi = _WORLD_CUP_WINDOW
     if not (lo <= when <= hi):
@@ -575,6 +594,28 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     (r"IKANO RETAIL MEXICO", "Compras"),  # IKEA México
     (r"SIERRA #0096", "Compras"),  # outlet, Silverthorne
     (r"SAMS VENTA EN LINEA", "Alimentos y Supermercado"),
+    # Quinto lote: identificados directamente por el usuario, no por
+    # inferencia del nombre del comercio.
+    (r"\bALMA MEXICO\b", "Entretenimiento"),  # antro, confirmado por el usuario
+    (r"BILLPOCKET\*ALMA DANZOLO", "Entretenimiento"),  # mismo antro (Alma), sucursal/evento en Metepec
+    (r"QOYA SP SAO PAULO", "Viajes"),  # hotel, confirmado por el usuario
+    (r"ZEPIKA", "Regalos"),  # plataforma de regalos de boda, confirmado por el usuario — cubre OPENPAY* y las dos variantes de PAYPAL*
+    (r"DEPORPRIVE", "Compras"),  # tienda, confirmado por el usuario — cubre el cargo directo y PAYPAL*
+    (r"HULE CIUDAD DE MEX", "Restaurantes y Café"),  # bar, confirmado por el usuario
+    (r"WALMART VENTA EN LINEA", "Alimentos y Supermercado"),  # confirmado por el usuario
+    # Compra de producto Coca-Cola (el usuario trabaja ahí, confirmó que
+    # probablemente son compras de producto a la propia empresa) — variantes
+    # vistas en CDMX, Atlanta y Las Vegas. Distinto del SPEI RECIBIDOBANAMEX
+    # "THE COCA COLA EXPORT CORPORATI[ON]" (ver KNOWN_PERSON_RULES-style
+    # abajo): ese es dinero que regresa, no una compra, y por eso va a
+    # Reembolsos y no aquí.
+    (r"COCA COLA EXP CIB|COCA COLA EXPORT MEXICO|COCA COLA AOC|COCA COLA ATLANTA|COCA COLA LAS VEGAS", "Alimentos y Supermercado"),
+    # SPEI recibidos de "THE COCA COLA EXPORT CORPORATI[ON]" vía "SERVICIOS
+    # INTEG DE ADMINIS Y ALTA[GERENCIA]" (la misma procesadora que vendió los
+    # boletos del Mundial, ver WORLD_CUP_PATTERNS) — un reembolso de gasto,
+    # no ingreso ni compra. "CORPORATI" no colisiona con las variantes de
+    # arriba (EXP CIB / EXPORT MEXICO / AOC / ATLANTA / LAS VEGAS).
+    (r"COCA COLA EXPORT CORPORATI", "Reembolsos"),
 ]
 
 
