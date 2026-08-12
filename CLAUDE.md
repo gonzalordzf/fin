@@ -56,12 +56,16 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
   estados reales que dos personas con apellido Fierro (no soy yo) aparecen como
   remitentes/destinatarios en mis estados — machear solo por apellido habría sido un
   falso positivo real, no hipotético.
-- **Dinero institucional (GBM/Bitso/Sura) no se detecta por titular, se detecta por
+- **Dinero institucional (GBM/Bitso) no se detecta por titular, se detecta por
   institución** — cuando el remitente/destinatario de un SPEI es una de mis propias
   cuentas formales de inversión, el estado muestra el nombre de la institución, no mi
-  nombre. Esto es distinto del caso anterior y **todavía no está implementado** —
-  ver `docs/02-categorias.md`: probablemente debe ser categoría "Inversión" (Necesario),
-  no "Transferencia entre Cuentas Propias". No mezclar los dos mecanismos sin pensarlo.
+  nombre (a veces sí muestra mi nombre para el mismo tipo de traspaso GBM — confirmado
+  en estados reales — así que este mecanismo y la detección por titular/RFC de arriba
+  DEBEN resolver a la misma categoría o el mismo traspaso se reparte de forma
+  inconsistente entre dos categorías según qué texto imprimió el estado ese mes; esto
+  pasó de verdad, ver regla 3 abajo). Optimax/Allianz (aportación recurrente, no
+  traspaso entre cuentas propias) usa un mecanismo aparte y sigue siendo "Inversión"
+  (EXPENSE) — no confundir los dos.
 - **Ningún número se hardcodea si existe una fuente que lo reporte.** Cuando no existe
   ninguna fuente (ej. la aportación inicial de Balagan, el balance real de GBM), se
   documenta como constante o como `manual_data.py`, siempre citando de dónde salió.
@@ -82,6 +86,16 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
    (no hay fuente). Se registra solo el ajuste neto conocido entre los dos estados reales
    que sí existen (octubre y diciembre 2023) como una transacción sintética en
    `manual_data.py`, categorizada como traspaso ("Pago de Tarjeta de Crédito", no gasto).
+4. Traspasos a/desde GBM y Bitso (confirmado con el usuario, 2026-08-12): son traspaso
+   puro, NO gasto ni ingreso — mismo tratamiento que mover dinero entre cuentas propias
+   de banco. Categoría "Transferencia entre Cuentas Propias" (`app/rules.py`,
+   `INVESTMENT_ACCOUNT_TRANSFER_PATTERNS`). Antes 16 de 28 traspasos GBM reales caían en
+   "Inversión" (EXPENSE, sí contaba como gasto) y los otros 12 en "Transferencia" —
+   inconsistente, dependía de si el estado de BBVA imprimía "GBM" o mi propio nombre ese
+   mes — no una decisión, un bug. Corregido retroactivamente en la DB; el efecto medido
+   fue de ~$1.2M MXN menos de "gasto" histórico y la tasa de ahorro histórica pasó de
+   -14.41% a +7.57% (ver `app/savings_goal.py`). Optimax/Allianz (aportación recurrente
+   al producto, no traspaso entre cuentas propias) NO cambió — sigue en "Inversión".
 
 ## Abierto / sin resolver
 
@@ -89,8 +103,15 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
   exactamente $75,000 (valor original, Cláusulas QUINTA/SEXTA) o un monto ajustado por
   desempeño — sin confirmar todavía. No asumir ninguna de las dos en cálculos de "cuánto
   puedo recuperar".
-- **Traspasos institucionales** (BBVA↔GBM/Bitso/Sura): mecanismo de detección pendiente,
-  ver arriba.
+- **BBVA (débito), hueco abr-may 2025**: `1527842107_202505.pdf` y `1527842107_202506.pdf`
+  (los estados que cubren 07-abr-2025 a 06-jun-2025) nunca se subieron al Drive conectado
+  — confirmado buscando directamente en la carpeta, no aparecen bajo ningún nombre (a
+  diferencia del hueco de BBVA TDC, aquí no hay ni siquiera un archivo mal etiquetado que
+  rescatar). El patrón de depósitos NOMINA/CITI quincenal (~13-14 y ~27-28 de cada mes)
+  implica que faltan ~4 depósitos reales, no solo el que preguntó el usuario. Sin el PDF
+  real no se puede importar — no estimar montos ni fechas. Si el usuario consigue los
+  estados (portal de BBVA suele guardar 12-24 meses), importarlos igual que cualquier
+  otro mes de `BBVA`.
 - **Categorización automática de gasto**: implementada (`app/rules.py`, `app/classify.py`),
   validada contra datos reales de BBVA y AMEX. Cobertura parcial — sigue creciendo con
   cada corte, per el propio principio del kit ("al tercer corte casi todo se clasifica

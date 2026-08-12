@@ -18,7 +18,7 @@ description and raw_description never starts with the merchant text
 boundary before words BBVA's PDF extraction concatenates without a space
 (e.g. "0022386NOMINA", "RECIBIDOGBM"). Fixed by dropping the anchors/
 boundaries that don't survive that concatenation — see inline comments on
-SELF_PAYMENT_RULES, INVESTMENT_INSTITUTION_PATTERNS, INCOME_RULES, and the
+SELF_PAYMENT_RULES, INVESTMENT_ACCOUNT_TRANSFER_PATTERNS, INCOME_RULES, and the
 Transporte/Efectivo entries in MERCHANT_RULES.
 """
 
@@ -71,13 +71,34 @@ SELF_PAYMENT_RULES: list[tuple[str, str]] = [
     (r"Ajuste: estado de cuenta", "Pago de Tarjeta de Crédito"),
 ]
 
-INVESTMENT_INSTITUTION_PATTERNS: list[str] = [
+INVESTMENT_ACCOUNT_TRANSFER_PATTERNS: list[str] = [
     # No leading \b: BBVA's own PDF text extraction concatenates "SPEI
     # RECIBIDOGBM" as one word with no space before the institution name
     # (confirmed on 4 real GBM withdrawal transactions — \bGBM\b matched 0
     # of them since there's no word boundary between "O" and "G").
+    #
+    # User confirmed 2026-08-12: money moving between BBVA and an
+    # investment ACCOUNT already owned (GBM/Bitso) is a pure transfer, not
+    # spend or income — same treatment as SELF_PAYMENT_RULES below, just
+    # detected by institution name instead of titular/RFC (BBVA sometimes
+    # prints the institution name as the SPEI counterparty, sometimes the
+    # account holder's own name for the exact same kind of GBM transfer —
+    # confirmed on real statements — so this list and SELF_PAYMENT_RULES
+    # must resolve to the SAME category or the same kind of transfer
+    # splits inconsistently across two buckets depending on which text a
+    # given statement happened to print. That was a real bug: 12 of 28
+    # real GBM transfers landed in "Transferencia entre Cuentas Propias"
+    # this way while the rest sat in "Inversión" (EXPENSE), inflating
+    # measured gasto by their net difference).
     r"GBM\b",
     r"BITSO\b",  # not yet seen in a real contribution transaction — best effort
+]
+
+# Unlike the account-transfer patterns above, these are recurring
+# contribution/premium payments into a product — not moving already-owned
+# balances between two of the user's own accounts — so they stay counted
+# as spend (kind=EXPENSE). Not part of the 2026-08-12 GBM/Bitso decision.
+INVESTMENT_CONTRIBUTION_PATTERNS: list[str] = [
     # Confirmed on real BBVA TDC charges ("ALLIANZ MEXICO CR"): the fixed
     # monthly Optimax contribution, paid by credit card — not car
     # insurance (Qualitas/ANA, which stays in Transporte, are unrelated).
@@ -85,6 +106,7 @@ INVESTMENT_INSTITUTION_PATTERNS: list[str] = [
     r"OPTIMAX\b",  # not yet seen in a real contribution transaction — best effort
 ]
 _INVESTMENT_CATEGORY = "Inversión"
+_INVESTMENT_TRANSFER_CATEGORY = "Transferencia entre Cuentas Propias"
 
 INCOME_RULES: list[tuple[str, str]] = [
     # No leading \b, same concatenation issue as GBM above: BBVA renders
@@ -736,7 +758,11 @@ def classify_merchants(session: Session) -> int:
         ):
             category_name = _WORLD_CUP_CATEGORY
         if category_name is None and any(
-            re.search(p, haystack, re.IGNORECASE) for p in INVESTMENT_INSTITUTION_PATTERNS
+            re.search(p, haystack, re.IGNORECASE) for p in INVESTMENT_ACCOUNT_TRANSFER_PATTERNS
+        ):
+            category_name = _INVESTMENT_TRANSFER_CATEGORY
+        if category_name is None and any(
+            re.search(p, haystack, re.IGNORECASE) for p in INVESTMENT_CONTRIBUTION_PATTERNS
         ):
             category_name = _INVESTMENT_CATEGORY
         if category_name is None:
