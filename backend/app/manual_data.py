@@ -106,37 +106,15 @@ MANUAL_HOLDING_SNAPSHOTS = [
     },
 ]
 
-MANUAL_TRANSACTIONS = [
-    {
-        # The Noviembre 2023 "Tarjeta ORO BBVA" statement is permanently
-        # missing: both the "Noviembre 2023" and "Diciembre 2023" files in
-        # the connected Drive folder are the exact same December PDF
-        # (md5-confirmed 2026-08-12) — the real November statement was
-        # never uploaded and doesn't exist anywhere in the connected
-        # Drive. app/importers/bbva_credit.py allowlists this one specific
-        # balance-chain break (_KNOWN_CHAIN_GAPS) so it doesn't raise like
-        # every other broken chain would; this transaction is what makes
-        # the running Transaction-sum balance read correctly across it.
-        "account_name": "BBVA TDC",
-        "date": datetime.date(2023, 11, 5),
-        "amount": 11_947.23,
-        "currency": "MXN",
-        "description": "Ajuste: estado de cuenta de noviembre 2023 no disponible",
-        "source_file": "GAP_NOV2023_ADJUSTMENT",
-        "source_row": 0,
-        "notes": (
-            "Net reconciling amount between Octubre 2023's real closing "
-            "balance ('Saldo al Corte' $18,985.52, 04-oct-2023 cutoff) "
-            "and Diciembre 2023's real opening balance ('Saldo Inicial "
-            "del Periodo' $7,038.29, 05-nov-2023 period start) — both "
-            "sourced from real statements either side of the gap. This "
-            "is NOT an estimate of what was actually charged or paid "
-            "during November, which is unknown and unrecoverable; it's "
-            "only the known net effect, positive here (an abono/paydown) "
-            "since the balance decreased across the gap."
-        ),
-    },
-]
+# Empty as of 2026-08-12: the one entry ever needed here (a synthetic
+# adjustment bridging BBVA TDC's presumed-missing Noviembre 2023
+# statement) was removed once the user found and uploaded the real
+# statement — see the "Reglas ya decididas" entry in CLAUDE.md history.
+# Kept as live infrastructure (not deleted) for the same kind of
+# genuinely-unrecoverable gap in the future: a documented net adjustment
+# beats leaving the running balance silently wrong across a hole no
+# statement will ever fill.
+MANUAL_TRANSACTIONS: list[dict] = []
 
 
 def apply_manual_data() -> int:

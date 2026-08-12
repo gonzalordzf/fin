@@ -15,7 +15,7 @@ statement that doesn't reconcile against its own printed totals; this
 importer adds the same balance-chain check the débito importer does:
 statement N's previous_balance must equal the immediately preceding
 statement's new_balance, or a statement is missing between them — except
-for the one documented, permanent gap in _KNOWN_CHAIN_GAPS.
+for any documented, permanent gap in _KNOWN_CHAIN_GAPS.
 """
 
 from __future__ import annotations
@@ -30,17 +30,14 @@ from app.models import Account, StatementSummary, Transaction
 from app.parsers.bbva_credit import BBVACreditStatement, parse_bbva_credit_statement
 from app.parsers.bbva_credit_legacy import parse_bbva_credit_legacy_statement
 
-# The Noviembre 2023 "Tarjeta Oro" statement is permanently missing — both
-# the "Noviembre 2023" and "Diciembre 2023" files in the connected Drive
-# folder are the exact same December PDF (md5-confirmed 2026-08-12); the
-# real November statement was never uploaded and isn't recoverable from
-# Drive. app/manual_data.py records the resulting net balance change
-# (Octubre 2023's real closing balance vs. Diciembre 2023's real opening
-# balance) as a documented adjustment transaction, so this one specific
-# transition is allowed to skip the chain check rather than raising like
-# every other broken chain would. Keyed by the two real balances either
+# Empty as of 2026-08-12: Noviembre 2023 was presumed permanently missing
+# (both the "Noviembre 2023" and "Diciembre 2023" Drive files were the
+# exact same December PDF) and allowlisted here, but the user found and
+# uploaded the real statement, which reconciles cleanly on its own — no
+# allowlisting needed. Kept as live infrastructure for a genuinely
+# unrecoverable gap in the future, keyed by the two real balances either
 # side of the gap so it can never silently swallow a *different* break.
-_KNOWN_CHAIN_GAPS = {("BBVA TDC", 18985.52, 7038.29)}
+_KNOWN_CHAIN_GAPS: set[tuple[str, float, float]] = set()
 
 
 def _detect_format(pdf_path: str) -> str:
