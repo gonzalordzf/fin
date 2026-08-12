@@ -1,4 +1,8 @@
-"""Parser for BBVA credit card ("TARJETA PLATINUM BBVA") statement PDFs.
+"""Parser for BBVA credit card statement PDFs, "nuevo estado de cuenta
+universal" template (confirmed real jul-2024 onward; the card PRODUCT
+itself is still "Tarjeta ORO BBVA" on this template too — only the layout
+changed, not the product tier — see `parsers/bbva_credit_legacy.py` for
+the older ene-2023–jun-2024 template of the same card).
 
 Distinct account and distinct statement format from `parsers/bbva.py`
 (BBVA's checking/débito account) — this one is not password-protected, and

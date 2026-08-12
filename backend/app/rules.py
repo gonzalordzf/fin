@@ -65,6 +65,10 @@ SELF_PAYMENT_RULES: list[tuple[str, str]] = [
     # A bounced card payment reversing back onto the balance: not spending,
     # it's the undo of a card payment, so it belongs with them and nets out.
     (r"PAGO DEVUELTO", "Pago de Tarjeta de Crédito"),
+    # manual_data.py's synthetic BBVA TDC transaction bridging the missing
+    # Noviembre 2023 statement — a net paydown between two real statements'
+    # own balances, not real spend or income, so it belongs here too.
+    (r"Ajuste: estado de cuenta", "Pago de Tarjeta de Crédito"),
 ]
 
 INVESTMENT_INSTITUTION_PATTERNS: list[str] = [

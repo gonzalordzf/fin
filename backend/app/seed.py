@@ -25,9 +25,11 @@ ACCOUNTS: list[dict] = [
     },
     {
         # Real credit card statements, not the same account as "BBVA"
-        # (checking/débito) above — "TARJETA PLATINUM BBVA", statements
-        # confirm no interest/installment balance ever carried (paid in
-        # full each period through this app's history so far).
+        # (checking/débito) above — still "Tarjeta ORO BBVA" as a product
+        # (the statement layout changed jul-2024, the product tier didn't;
+        # see parsers/bbva_credit.py and parsers/bbva_credit_legacy.py).
+        # A balance has carried with real interest/comisiones in several
+        # legacy-era months (confirmed against real 2023 statements).
         "name": "BBVA TDC",
         "institution": "BBVA México",
         "kind": AccountKind.TRANSACTIONAL,

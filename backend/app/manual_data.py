@@ -13,7 +13,7 @@ from __future__ import annotations
 import datetime
 
 from app.db import get_session
-from app.models import Account, HoldingSnapshot
+from app.models import Account, HoldingSnapshot, Transaction
 
 MANUAL_HOLDING_SNAPSHOTS = [
     {
@@ -83,30 +83,57 @@ MANUAL_HOLDING_SNAPSHOTS = [
         ),
     },
     {
-        # BBVA TDC's imported transaction history only covers Jul-2024
-        # onward — Ene-2023 to Jun-2024 statements use an older,
-        # structurally different template ("Tarjeta Oro BBVA": DD/MM/YY
-        # dates, separate CARGOS/ABONOS columns, no explicit +/- sign
-        # token) that parsers/bbva_credit.py doesn't parse yet, see
-        # CLAUDE.md's abierto/sin resolver. Without this anchor, the
-        # account's balance (sum of imported transactions) would read as
-        # whatever those 26 months net to on their own, not the real
-        # amount owed.
+        # BBVA TDC's imported transaction history now covers ene-2023
+        # onward (parsers/bbva_credit_legacy.py handles the older
+        # "Tarjeta ORO BBVA" template used through jun-2024; see
+        # parsers/bbva_credit.py for the "nuevo estado de cuenta
+        # universal" template used from jul-2024). This is the earliest
+        # point any statement reports a balance for — everything before
+        # 05-dic-2022 is genuinely unknown, no statement for it exists in
+        # the connected Drive.
         "account_name": "BBVA TDC",
-        "date": datetime.date(2024, 6, 4),
+        "date": datetime.date(2022, 12, 5),
         "sub_portfolio": None,
-        "market_value": -12_448.27,
+        "market_value": -610.08,
         "currency": "MXN",
         "notes": (
-            "Opening balance anchor, sourced from the first imported "
-            "statement's own printed 'Adeudo del periodo anterior: "
-            "$12,448.27' (Jul-2024 statement, as of the 04-jun-2024 "
-            "cutoff of the preceding, unimported period) — negative here "
-            "since it's debt owed, per this project's sign convention. "
-            "Confirmed as the same ongoing credit line rather than a "
-            "different account: the last 'Tarjeta Oro BBVA' statement "
-            "before the card was reissued as 'Tarjeta Platinum BBVA' "
-            "prints the identical closing balance for the same date."
+            "Opening balance anchor, sourced from the earliest imported "
+            "statement's (Ene-2023, cutoff 04-ene-2023) own printed "
+            "'Saldo Inicial del Periodo: -$610.08' as of the period's "
+            "05-dic-2022 start — negative here since it's debt owed, per "
+            "this project's sign convention."
+        ),
+    },
+]
+
+MANUAL_TRANSACTIONS = [
+    {
+        # The Noviembre 2023 "Tarjeta ORO BBVA" statement is permanently
+        # missing: both the "Noviembre 2023" and "Diciembre 2023" files in
+        # the connected Drive folder are the exact same December PDF
+        # (md5-confirmed 2026-08-12) — the real November statement was
+        # never uploaded and doesn't exist anywhere in the connected
+        # Drive. app/importers/bbva_credit.py allowlists this one specific
+        # balance-chain break (_KNOWN_CHAIN_GAPS) so it doesn't raise like
+        # every other broken chain would; this transaction is what makes
+        # the running Transaction-sum balance read correctly across it.
+        "account_name": "BBVA TDC",
+        "date": datetime.date(2023, 11, 5),
+        "amount": 11_947.23,
+        "currency": "MXN",
+        "description": "Ajuste: estado de cuenta de noviembre 2023 no disponible",
+        "source_file": "GAP_NOV2023_ADJUSTMENT",
+        "source_row": 0,
+        "notes": (
+            "Net reconciling amount between Octubre 2023's real closing "
+            "balance ('Saldo al Corte' $18,985.52, 04-oct-2023 cutoff) "
+            "and Diciembre 2023's real opening balance ('Saldo Inicial "
+            "del Periodo' $7,038.29, 05-nov-2023 period start) — both "
+            "sourced from real statements either side of the gap. This "
+            "is NOT an estimate of what was actually charged or paid "
+            "during November, which is unknown and unrecoverable; it's "
+            "only the known net effect, positive here (an abono/paydown) "
+            "since the balance decreased across the gap."
         ),
     },
 ]
@@ -142,10 +169,34 @@ def apply_manual_data() -> int:
                 )
             )
             inserted += 1
+
+        for spec in MANUAL_TRANSACTIONS:
+            account = session.query(Account).filter_by(name=spec["account_name"]).one()
+            existing = (
+                session.query(Transaction)
+                .filter_by(account_id=account.id, source_file=spec["source_file"], source_row=spec["source_row"])
+                .one_or_none()
+            )
+            if existing is not None:
+                continue
+            session.add(
+                Transaction(
+                    account_id=account.id,
+                    date=spec["date"],
+                    amount=spec["amount"],
+                    currency=spec["currency"],
+                    description=spec["description"],
+                    source_file=spec["source_file"],
+                    source_row=spec["source_row"],
+                    raw_description=spec["notes"],
+                )
+            )
+            inserted += 1
+
         session.commit()
     return inserted
 
 
 if __name__ == "__main__":
     count = apply_manual_data()
-    print(f"Inserted {count} new manual snapshots")
+    print(f"Inserted {count} new manual snapshots/transactions")

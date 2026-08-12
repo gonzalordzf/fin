@@ -27,8 +27,9 @@ falta. Cualquier sesión debería leer esto antes de tocar código.
 
 | Cuenta | Institución | Tipo | Moneda | Notas |
 |---|---|---|---|---|
-| BBVA | BBVA México | transactional | MXN | PDF protegido con contraseña = RFC sin homoclave (`ROFG950407`). El campo `description` del parser solo trae la primera línea del SPEI; el nombre del beneficiario vive en `raw_description` (línea de continuación). |
-| AMEX | American Express | transactional | MXN | CSV, `Referencia` es confiable como llave de dedup. |
+| BBVA | BBVA México | transactional | MXN | PDF protegido con contraseña = RFC sin homoclave (`ROFG950407`). El campo `description` del parser solo trae la primera línea del SPEI; el nombre del beneficiario vive en `raw_description` (línea de continuación). Solo débito — no incluye la tarjeta de crédito (ver `BBVA TDC` abajo). |
+| BBVA TDC | BBVA México | transactional (`is_credit_card=True`) | MXN | Tarjeta de crédito, cuenta separada de `BBVA` (débito). Dos plantillas de estado de cuenta para el mismo producto ("Tarjeta ORO BBVA" — el nombre del producto no cambió, solo el layout): `parsers/bbva_credit.py` para jul-2024 en adelante ("nuevo estado de cuenta universal") y `parsers/bbva_credit_legacy.py` para ene-2023 a jun-2024 (columnas CARGOS/ABONOS separadas por posición x, sin token de signo). `importers/bbva_credit.py` detecta el formato solo (`_detect_format`, por el header de la tabla de movimientos — el texto "Tarjeta ORO BBVA" aparece en ambas plantillas y no sirve para distinguirlas). Sin contraseña, a diferencia de `BBVA` débito. Corte día 4, pago 20 días naturales después (confirmado contra estados reales). El estado de **noviembre 2023 no existe** — los archivos "Noviembre 2023" y "Diciembre 2023" en el Drive conectado son el mismo PDF de diciembre (confirmado por md5, 2026-08-12); `manual_data.py` registra el ajuste neto ($11,947.23) entre el saldo real de cierre de octubre y el saldo real de apertura de diciembre, y `importers/bbva_credit.py` (`_KNOWN_CHAIN_GAPS`) permite ese único salto en la cadena de saldos sin fallar. Balance ancla en `manual_data.py`: $610.08 al 05-dic-2022 (el "Saldo Inicial del Periodo" del primer estado disponible, ene-2023) — todo lo anterior a esa fecha es desconocido, no hay estado que lo reporte. |
+| AMEX | American Express | transactional (`is_credit_card=True`) | MXN | CSV, `Referencia` es confiable como llave de dedup. Corte día 3, pago 15 días hábiles después. |
 | Revolut | Revolut | transactional | MXN | PDF, montos vienen en convención invertida (se voltea el signo al importar). |
 | Bitso | Bitso | investment_formal | MXN | CSV. |
 | GBM | GBM | investment_formal | MXN | Dos sub-contratos (`GBM AAU94801`, `GBM AAU94802`) colgados como hijos vía `parent_account_id`. El Addenda XML solo trae interés diario, nunca el capital invertido — el balance real de la cuenta padre viene de `manual_data.py` (screenshot de la app), y los hijos se excluyen del total para no duplicar (`excluded_from_total`). |
@@ -77,6 +78,10 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
 2. Balagan: el balance es SOLO `initial_investment` ($75,000, constante contractual).
    La "Repartición por punto" mensual se paga en efectivo y NUNCA se suma al balance —
    se reporta aparte como `cash_distributed_to_date` / `average_monthly_return_pct`.
+3. BBVA TDC, hueco de noviembre 2023: el mes no se estima transacción por transacción
+   (no hay fuente). Se registra solo el ajuste neto conocido entre los dos estados reales
+   que sí existen (octubre y diciembre 2023) como una transacción sintética en
+   `manual_data.py`, categorizada como traspaso ("Pago de Tarjeta de Crédito", no gasto).
 
 ## Abierto / sin resolver
 
@@ -94,6 +99,9 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
 - **Hard balance validation**: implementada donde existe un total impreso real contra
   el cual cuadrar, verificado con datos reales de cada fuente:
   - BBVA: cargos/abonos + cadena de saldos entre estados.
+  - BBVA TDC: cargos/abonos contra RESUMEN de cada estado + cadena de saldos entre
+    estados (ambas plantillas — ver tabla de cuentas arriba). Un solo salto permitido en
+    la cadena, documentado (`_KNOWN_CHAIN_GAPS`): el estado de noviembre 2023 no existe.
   - Revolut: Total cargos/Total abonos impresos.
   - Optimax: Monto == Unidades × Valor de la Unidad (tolerancia 5¢ por redondeo real).
   - Balagan: Repartición por punto ≈ PARTICIPATION_PCT × net_income (tolerancia $1).
