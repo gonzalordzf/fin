@@ -19,7 +19,7 @@ from app.db import get_session, init_db
 from app.importers import afore, amex, balagan, bbva, bbva_credit, bitso, gbm, optimax, revolut, shareworks
 from app.parsers import balagan as balagan_parser
 from app.rules import classify_merchants, classify_spend_frequency
-from app.savings_goal import TARGET_SAVINGS_RATE_PCT
+from app.savings_goal import TARGET_SAVINGS_RATE_PCT, compute_savings_projection
 from app.models import (
     Account,
     AlternativeInvestmentEntry,
@@ -398,6 +398,25 @@ def savings_goal(currency: str = "MXN") -> dict:
             "historical_savings_rate_pct": historical_rate,
         },
     }
+
+
+@app.get("/savings-projection")
+def savings_projection(currency: str = "MXN") -> dict:
+    """Linear multi-year projection for the Meta de ahorro panel — see
+    compute_savings_projection's docstring (app/savings_goal.py) for the
+    methodology and its caveats (no investment growth assumed, no
+    inflation, grounded in the trailing 12 closed months' median income/
+    gasto fijo rather than an all-time average).
+
+    Net worth is currency-agnostic (no FX conversion — see /net-worth's
+    own docstring), so this always projects against the MXN total
+    regardless of `currency`, which only controls which currency's
+    monthly income/gasto history is used as the projection's basis.
+    """
+    with get_session() as session:
+        months = _compute_monthly_summary(session, currency)
+    current_net_worth_mxn = net_worth()["total_by_currency"].get("MXN", 0.0)
+    return compute_savings_projection(months, current_net_worth_mxn)
 
 
 @app.get("/net-worth")
