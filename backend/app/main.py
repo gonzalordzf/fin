@@ -13,11 +13,13 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import func
 
+from app.card_dates import next_cutoff_date, next_payment_due_date
 from app.classify import classify_transfers
 from app.db import get_session, init_db
 from app.importers import afore, amex, balagan, bbva, bbva_credit, bitso, gbm, optimax, revolut, shareworks
 from app.parsers import balagan as balagan_parser
-from app.rules import classify_merchants
+from app.rules import classify_merchants, classify_spend_frequency
+from app.savings_goal import TARGET_SAVINGS_RATE_PCT
 from app.models import (
     Account,
     AlternativeInvestmentEntry,
@@ -100,28 +102,42 @@ def trigger_import(account: str) -> dict:
 def trigger_classify() -> dict:
     """Runs rule-based classification over every uncategorized transaction:
     self-transfers by titular/RFC first (most certain), then card
-    autopay/refund/investment-institution/payroll/merchant rules. Idempotent
-    and safe to call repeatedly, including after new imports."""
+    autopay/refund/investment-institution/payroll/merchant rules, then
+    fijo/variable (relies on category already being set where possible, so
+    it runs last). Idempotent and safe to call repeatedly, including after
+    new imports."""
     with get_session() as session:
         transfers = classify_transfers(session)
         merchants = classify_merchants(session)
-    return {"transfers_classified": transfers, "merchants_classified": merchants}
+        spend_frequency = classify_spend_frequency(session)
+    return {
+        "transfers_classified": transfers,
+        "merchants_classified": merchants,
+        "spend_frequency_tagged": spend_frequency,
+    }
 
 
 @app.get("/accounts")
 def list_accounts() -> list[dict]:
     with get_session() as session:
-        return [
-            {
+        result = []
+        for a in session.query(Account).order_by(Account.id).all():
+            entry = {
                 "id": a.id,
                 "name": a.name,
                 "institution": a.institution,
                 "kind": a.kind.value,
                 "currency": a.currency,
                 "parent": a.parent.name if a.parent else None,
+                "is_credit_card": a.is_credit_card,
             }
-            for a in session.query(Account).order_by(Account.id).all()
-        ]
+            if a.is_credit_card:
+                # Best-effort: business-day counting only skips Sat/Sun, no
+                # Mexican bank holidays — see card_dates.py's docstring.
+                entry["next_cutoff_date"] = next_cutoff_date(a).isoformat()
+                entry["next_payment_due_date"] = next_payment_due_date(a).isoformat()
+            result.append(entry)
+        return result
 
 
 @app.get("/transactions")
@@ -219,8 +235,7 @@ def spending_by_category(
         return sorted(result, key=lambda r: -r["amount"])
 
 
-@app.get("/monthly-summary")
-def monthly_summary(currency: str = "MXN") -> list[dict]:
+def _compute_monthly_summary(session, currency: str) -> list[dict]:
     """Month-by-month income, expense (by category, net), and cash flow —
     one currency at a time, same principle as /net-worth's per-currency
     totals: no FX conversion, so mixing them would silently produce a
@@ -233,65 +248,132 @@ def monthly_summary(currency: str = "MXN") -> list[dict]:
     that endpoint's docstring for why summing only amount<0 would be wrong.
     'Sin categoría' stays charges-only for the same reason: no way to tell
     a refund from unrelated income once uncategorized.
+
+    Shared by /monthly-summary and /savings-goal — both need the same
+    per-month income/expense/net, and computing it twice risked the two
+    endpoints silently drifting apart.
+    """
+    month_expr = func.strftime("%Y-%m", Transaction.date)
+
+    income_rows = (
+        session.query(month_expr, func.sum(Transaction.amount))
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Category.kind == CategoryKind.INCOME, Transaction.currency == currency)
+        .group_by(month_expr)
+        .all()
+    )
+
+    expense_rows = (
+        session.query(month_expr, Category.name, Category.nature, func.sum(Transaction.amount))
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Category.kind == CategoryKind.EXPENSE, Transaction.currency == currency)
+        .group_by(month_expr, Category.name, Category.nature)
+        .all()
+    )
+
+    uncategorized_rows = (
+        session.query(month_expr, func.sum(Transaction.amount))
+        .filter(
+            Transaction.category_id.is_(None),
+            Transaction.amount < 0,
+            Transaction.currency == currency,
+        )
+        .group_by(month_expr)
+        .all()
+    )
+
+    months: dict[str, dict] = {}
+
+    def month_entry(month: str) -> dict:
+        return months.setdefault(
+            month, {"month": month, "income": 0.0, "categories": [], "uncategorized_expense": 0.0}
+        )
+
+    for month, total in income_rows:
+        month_entry(month)["income"] = round(total, 2)
+
+    for month, name, nature, amt in expense_rows:
+        month_entry(month)["categories"].append(
+            {"category": name, "nature": nature.value if nature else None, "amount": round(-amt, 2)}
+        )
+
+    for month, total in uncategorized_rows:
+        month_entry(month)["uncategorized_expense"] = round(-total, 2)
+
+    result = []
+    for month in sorted(months):
+        entry = months[month]
+        entry["categories"].sort(key=lambda c: -c["amount"])
+        total_expense = sum(c["amount"] for c in entry["categories"]) + entry["uncategorized_expense"]
+        entry["total_expense"] = round(total_expense, 2)
+        entry["net"] = round(entry["income"] - total_expense, 2)
+        result.append(entry)
+
+    return result
+
+
+@app.get("/monthly-summary")
+def monthly_summary(currency: str = "MXN") -> list[dict]:
+    """See _compute_monthly_summary — this route just opens the session."""
+    with get_session() as session:
+        return _compute_monthly_summary(session, currency)
+
+
+@app.get("/savings-goal")
+def savings_goal(currency: str = "MXN") -> dict:
+    """Per-month progress against TARGET_SAVINGS_RATE_PCT (app/savings_goal.py
+    — a reasoned default, not a fact from any statement, see that module's
+    docstring for how it was chosen and why it's a % of income rather than
+    a fixed peso amount).
+
+    A month with $0 income (goal not applicable — nothing to measure a
+    rate against) reports met=None rather than being silently skipped or
+    counted as a miss. current_streak counts consecutive met=True months
+    working backward from the most recent evaluated (non-None) month.
     """
     with get_session() as session:
-        month_expr = func.strftime("%Y-%m", Transaction.date)
+        months = _compute_monthly_summary(session, currency)
 
-        income_rows = (
-            session.query(month_expr, func.sum(Transaction.amount))
-            .join(Category, Transaction.category_id == Category.id)
-            .filter(Category.kind == CategoryKind.INCOME, Transaction.currency == currency)
-            .group_by(month_expr)
-            .all()
+    target_pct = TARGET_SAVINGS_RATE_PCT
+    result_months = []
+    for entry in months:
+        income = entry["income"]
+        net = entry["net"]
+        target_amount = round(income * target_pct / 100, 2) if income > 0 else 0.0
+        met = None if income <= 0 else net >= target_amount
+        result_months.append(
+            {
+                "month": entry["month"],
+                "income": income,
+                "net": net,
+                "target_amount": target_amount,
+                "met": met,
+            }
         )
 
-        expense_rows = (
-            session.query(month_expr, Category.name, Category.nature, func.sum(Transaction.amount))
-            .join(Category, Transaction.category_id == Category.id)
-            .filter(Category.kind == CategoryKind.EXPENSE, Transaction.currency == currency)
-            .group_by(month_expr, Category.name, Category.nature)
-            .all()
-        )
+    evaluated = [m for m in result_months if m["met"] is not None]
+    months_met = sum(1 for m in evaluated if m["met"])
 
-        uncategorized_rows = (
-            session.query(month_expr, func.sum(Transaction.amount))
-            .filter(
-                Transaction.category_id.is_(None),
-                Transaction.amount < 0,
-                Transaction.currency == currency,
-            )
-            .group_by(month_expr)
-            .all()
-        )
+    current_streak = 0
+    for m in reversed(evaluated):
+        if not m["met"]:
+            break
+        current_streak += 1
 
-        months: dict[str, dict] = {}
+    total_income = sum(m["income"] for m in evaluated)
+    total_net = sum(m["net"] for m in evaluated)
+    historical_rate = round(total_net / total_income * 100, 2) if total_income else 0.0
 
-        def month_entry(month: str) -> dict:
-            return months.setdefault(
-                month, {"month": month, "income": 0.0, "categories": [], "uncategorized_expense": 0.0}
-            )
-
-        for month, total in income_rows:
-            month_entry(month)["income"] = round(total, 2)
-
-        for month, name, nature, amt in expense_rows:
-            month_entry(month)["categories"].append(
-                {"category": name, "nature": nature.value if nature else None, "amount": round(-amt, 2)}
-            )
-
-        for month, total in uncategorized_rows:
-            month_entry(month)["uncategorized_expense"] = round(-total, 2)
-
-        result = []
-        for month in sorted(months):
-            entry = months[month]
-            entry["categories"].sort(key=lambda c: -c["amount"])
-            total_expense = sum(c["amount"] for c in entry["categories"]) + entry["uncategorized_expense"]
-            entry["total_expense"] = round(total_expense, 2)
-            entry["net"] = round(entry["income"] - total_expense, 2)
-            result.append(entry)
-
-        return result
+    return {
+        "target_pct": target_pct,
+        "months": result_months,
+        "summary": {
+            "months_evaluated": len(evaluated),
+            "months_met": months_met,
+            "current_streak": current_streak,
+            "historical_savings_rate_pct": historical_rate,
+        },
+    }
 
 
 @app.get("/net-worth")

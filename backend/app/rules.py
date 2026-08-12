@@ -29,7 +29,7 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.models import Category, Transaction
+from app.models import Category, CategoryKind, SpendFrequency, Transaction
 
 SELF_PAYMENT_RULES: list[tuple[str, str]] = [
     # Paying off your own credit card moves money between your own
@@ -148,6 +148,27 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
 # ("Enero 2024 Renta").
 RENT_PATTERNS: list[str] = [r"(?<![A-Za-z])RENTA\b"]
 _RENT_CATEGORY = "Vivienda"
+
+# Fijo vs variable is a per-transaction dimension, not a category-level one
+# (see SpendFrequency's docstring) — "Vivienda" holds both la renta (fijo)
+# and a one-off home-repair purchase (variable); "Salud" holds both la
+# psicóloga (fijo, mensual) and a random doctor visit (variable). Patterns
+# below are the ones the user named directly (seguros, gastos de hogar
+# recurrentes tipo la luz, la renta, la psicóloga) plus the ones already
+# confirmed recurring by their own rule comments elsewhere in this file —
+# not a guess at every possibly-recurring merchant, only the ones with an
+# actual basis. Matched the same way as every other rule here: against
+# raw_description + description, case-insensitive.
+FIXED_EXPENSE_PATTERNS: list[str] = [
+    *RENT_PATTERNS,  # la renta (BATIZ/RAMONELL/CLARA RAMOS below cover named-payee renta too)
+    r"BATIZ",
+    r"RAMONELL",
+    r"CLARA RAMOS",  # servicio de limpieza doméstica — recurring per its own rule comment
+    r"REMIS",  # Begoña Remis — psicóloga, recurring
+    r"\bCFE\b",  # luz — CFE SUM SERV BAS (MU/CR MU), domiciliado, confirmado en BBVA TDC
+    r"CONDOMIDRACO",  # cuota de mantenimiento del condominio, mensual
+    r"QUALITAS|ANA COMPA",  # seguro de auto — pólizas, no compras puntuales
+]
 
 # Reglas con vigencia: (patrón, categoría, desde, hasta) — ambas fechas
 # inclusivas, None = sin límite por ese lado.
@@ -749,3 +770,31 @@ def classify_merchants(session: Session) -> int:
 
     session.commit()
     return matched
+
+
+def classify_spend_frequency(session: Session) -> int:
+    """Tags fijo/variable on every still-untagged transaction that's a real
+    gasto: category.kind == EXPENSE, or uncategorized with amount < 0 (same
+    "counts as spend until proven otherwise" convention /spending-by-category
+    uses for 'Sin categoría'). Income and transfers are left untagged — the
+    dimension doesn't apply to them. Idempotent: only touches
+    spend_frequency is None, so it never overwrites a prior run or a manual
+    correction. Run after classify_merchants, since it relies on category
+    already being set where possible."""
+    tagged = 0
+    query = (
+        session.query(Transaction)
+        .outerjoin(Category)
+        .filter(
+            Transaction.spend_frequency.is_(None),
+            ((Category.kind == CategoryKind.EXPENSE) | ((Transaction.category_id.is_(None)) & (Transaction.amount < 0))),
+        )
+    )
+    for txn in query:
+        haystack = f"{txn.raw_description or ''} {txn.description}"
+        is_fixed = any(re.search(p, haystack, re.IGNORECASE) for p in FIXED_EXPENSE_PATTERNS)
+        txn.spend_frequency = SpendFrequency.FIJO if is_fixed else SpendFrequency.VARIABLE
+        tagged += 1
+
+    session.commit()
+    return tagged
