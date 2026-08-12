@@ -21,6 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Require all secrets to be set
+        # An empty/missing FLY_APP_PASSWORD or FLY_SESSION_SECRET doesn't
+        # make "flyctl secrets set" fail below — it just sets the app's
+        # APP_PASSWORD to an empty string, which os.environ.get() in
+        # main.py treats as falsy, so install_auth() is silently never
+        # called. That means a real financial-data backend would go live
+        # with NO login wall and no error anywhere. Fail loud here instead.
+        run: |
+          missing=()
+          [ -z "${{ secrets.FLY_API_TOKEN }}" ] && missing+=("FLY_API_TOKEN")
+          [ -z "${{ secrets.FLY_APP_PASSWORD }}" ] && missing+=("FLY_APP_PASSWORD")
+          [ -z "${{ secrets.FLY_SESSION_SECRET }}" ] && missing+=("FLY_SESSION_SECRET")
+          [ -z "${{ secrets.FLY_BBVA_STATEMENT_PASSWORD }}" ] && missing+=("FLY_BBVA_STATEMENT_PASSWORD")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required repo secrets: ${missing[*]} — set them in Settings > Secrets and variables > Actions before this workflow can run. See DEPLOY.md."
+            exit 1
+          fi
+
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Ensure app exists
