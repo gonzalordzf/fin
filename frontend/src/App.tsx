@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-import { fetchMonthlySummary, fetchNetWorth } from './api'
+import { fetchAuthStatus, fetchMonthlySummary, fetchNetWorth, logout } from './api'
 import type { MonthSummary, NetWorth } from './api'
 import { StatTile } from './components/StatTile'
 import { CashFlowChart } from './components/CashFlowChart'
@@ -12,9 +12,14 @@ export default function App() {
   const [netWorth, setNetWorth] = useState<NetWorth | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [authConfigured, setAuthConfigured] = useState(false)
 
   useEffect(() => {
     fetchNetWorth().then(setNetWorth).catch((e) => setError(String(e)))
+  }, [])
+
+  useEffect(() => {
+    fetchAuthStatus().then((s) => setAuthConfigured(s.configured))
   }, [])
 
   useEffect(() => {
@@ -58,17 +63,28 @@ export default function App() {
           <h1 className="app__title">Finanzas — Gonzalo Rodríguez Fierro</h1>
           <p className="app__subtitle">Análisis mes a mes de ingreso, gasto y patrimonio</p>
         </div>
-        <select
-          className="app__currency-select"
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-        >
-          {currencies.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        <div className="app__header-controls">
+          <select
+            className="app__currency-select"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+          >
+            {currencies.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          {authConfigured && (
+            <button
+              className="app__logout"
+              type="button"
+              onClick={() => logout().then(() => window.location.reload())}
+            >
+              Cerrar sesión
+            </button>
+          )}
+        </div>
       </header>
 
       {netWorth && (

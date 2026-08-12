@@ -1,0 +1,33 @@
+# Fly.io app config. App name is a placeholder — `flyctl launch` will offer
+# to generate one (must be globally unique across all Fly users) and rewrite
+# this file with the real name; that's expected, don't hand-pick one here.
+app = "finanzas-personales-gonzalo"
+primary_region = "qro"  # Querétaro, MX — closest Fly region to Mexico City
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  # DATABASE_URL points at the persistent volume below, not the container's
+  # ephemeral filesystem — without this, every redeploy would wipe the DB.
+  DATABASE_URL = "sqlite:////data/finanzas.db"
+  APP_ENV = "production"
+
+# APP_PASSWORD, SESSION_SECRET, BBVA_STATEMENT_PASSWORD are set separately
+# via `flyctl secrets set` (see DEPLOY.md) — never hardcoded here, this file
+# is committed to git.
+
+[[mounts]]
+  source = "finanzas_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

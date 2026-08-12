@@ -20,8 +20,10 @@ falta. Cualquier sesión debería leer esto antes de tocar código.
 | `backend/app/classify.py` | Detección de traspasos propios por titular/RFC (no por banco destino — ver gotcha abajo). |
 | `backend/app/seed.py` | Siembra las 9 cuentas + categorías + `manual_data`. Re-correr es seguro. |
 | `backend/app/main.py` | FastAPI: `POST /import/{account}`, `POST /classify`, `GET /accounts`, `GET /transactions`, `GET /spending-by-category`, `GET /net-worth`, `GET /monthly-summary`, `GET /savings-goal`, `GET /savings-projection`. |
+| `backend/app/auth.py` | Gate de password de un solo usuario (sesión firmada vía `SessionMiddleware`/`itsdangerous`), fail-closed: bloquea toda ruta salvo `/auth/login` y `/auth/status`. Solo se activa (`install_auth`, llamado desde `main.py`) si `APP_PASSWORD` está seteado — en dev local nunca lo está, así que el dev local no cambia en nada. Requiere también `SESSION_SECRET` (falla el arranque si falta). Ver `DEPLOY.md`. |
 | `data/imports/<Cuenta>/` | Carpeta de aterrizaje para estados nuevos, una por institución. Nunca se commitea contenido real (ver `.gitignore`, excluye por extensión). |
-| `frontend/` | Dashboard real: React + Vite + TypeScript, consulta la API en vivo (proxy `/api` → `uvicorn` puerto 8000 vía `vite.config.ts`). Vista principal mes a mes: flujo de efectivo (ingreso/gasto/neto) y desglose de gasto por categoría del mes seleccionado, coloreado por naturaleza (Básico/Necesario/Estilo de vida). Paleta y specs de gráficas siguiendo el skill `dataviz` (`frontend/src/theme.css`), con soporte de modo oscuro y vista de tabla accesible como respaldo de cada gráfica. |
+| `frontend/` | Dashboard real: React + Vite + TypeScript, consulta la API en vivo (proxy `/api` → `uvicorn` puerto 8000 vía `vite.config.ts` en dev; en producción, `frontend/functions/api/[[path]].ts` hace de proxy same-origin hacia el backend en Fly.io). Vista principal mes a mes: flujo de efectivo (ingreso/gasto/neto) y desglose de gasto por categoría del mes seleccionado, coloreado por naturaleza (Básico/Necesario/Estilo de vida). Paleta y specs de gráficas siguiendo el skill `dataviz` (`frontend/src/theme.css`), con soporte de modo oscuro y vista de tabla accesible como respaldo de cada gráfica. `AuthGate.tsx` envuelve `<App/>` en `main.tsx`: pantalla de login si el backend tiene auth activo, passthrough si no. |
+| `DEPLOY.md` | Cómo desplegar: Cloudflare Pages (frontend) + Fly.io (backend FastAPI/SQLite en volumen persistente). Comandos exactos de `flyctl`/Cloudflare — requieren las cuentas del usuario, no se pueden correr desde aquí. |
 
 ## Mis cuentas
 
@@ -106,6 +108,14 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
 
 ## Abierto / sin resolver
 
+- **Despliegue a producción**: código y config listos (`backend/app/auth.py`,
+  `backend/Dockerfile`, `fly.toml`, `frontend/functions/api/[[path]].ts`, `DEPLOY.md`) pero
+  el deploy real (crear la app en Fly.io, el proyecto en Cloudflare Pages, subir
+  `finanzas.db` al volumen) no se ha ejecutado — requiere las cuentas del usuario. El
+  flujo de importar estados de cuenta nuevos una vez desplegado sigue siendo local
+  (correr el import contra el `finanzas.db` local y volver a subirlo al volumen; no
+  existe todavía un endpoint para subir el archivo crudo por HTTP contra el backend
+  remoto — ver "Importar estados de cuenta nuevos" en `DEPLOY.md`).
 - **Balagan, mecánica de rescate**: pregunté si "recuperar la inversión" significa
   exactamente $75,000 (valor original, Cláusulas QUINTA/SEXTA) o un monto ajustado por
   desempeño — sin confirmar todavía. No asumir ninguna de las dos en cálculos de "cuánto

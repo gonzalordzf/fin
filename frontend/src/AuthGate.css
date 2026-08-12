@@ -1,0 +1,66 @@
+.auth-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.auth-gate__loading {
+  min-height: 100vh;
+}
+
+.auth-gate__form {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-1);
+}
+
+.auth-gate__title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.auth-gate__subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+}
+
+.auth-gate__input {
+  border: 1px solid var(--border);
+  background: var(--page-plane);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.auth-gate__error {
+  color: var(--series-8);
+  font-size: 13px;
+  margin: 0;
+}
+
+.auth-gate__submit {
+  border: none;
+  background: var(--series-1);
+  color: #fff;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-gate__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

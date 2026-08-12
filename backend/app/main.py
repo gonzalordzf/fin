@@ -7,12 +7,14 @@ Run with:
 from __future__ import annotations
 
 import datetime
+import os
 from collections import defaultdict
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import func
 
+from app.auth import install_auth
 from app.card_dates import next_cutoff_date, next_payment_due_date
 from app.classify import classify_transfers
 from app.db import get_session, init_db
@@ -31,6 +33,15 @@ from app.models import (
 )
 
 app = FastAPI(title="Finanzas Personales API")
+
+# Auth only turns on when APP_PASSWORD is actually set (see app/auth.py) —
+# local dev never sets it, so this stays a no-op there, exactly today's
+# behavior. Any real deployment MUST set both APP_PASSWORD and
+# SESSION_SECRET (install_auth raises loudly if the latter is missing)
+# before this app is reachable from the public internet: every route
+# except /auth/login and /auth/status requires a session.
+if os.environ.get("APP_PASSWORD"):
+    install_auth(app)
 
 DATA_IMPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "imports"
 
