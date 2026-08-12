@@ -108,14 +108,25 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
 
 ## Abierto / sin resolver
 
-- **Despliegue a producción**: código y config listos (`backend/app/auth.py`,
-  `backend/Dockerfile`, `fly.toml`, `frontend/functions/api/[[path]].ts`, `DEPLOY.md`) pero
-  el deploy real (crear la app en Fly.io, el proyecto en Cloudflare Pages, subir
-  `finanzas.db` al volumen) no se ha ejecutado — requiere las cuentas del usuario. El
-  flujo de importar estados de cuenta nuevos una vez desplegado sigue siendo local
-  (correr el import contra el `finanzas.db` local y volver a subirlo al volumen; no
-  existe todavía un endpoint para subir el archivo crudo por HTTP contra el backend
-  remoto — ver "Importar estados de cuenta nuevos" en `DEPLOY.md`).
+- **Despliegue a producción**: el sandbox de Claude Code no tiene salida a internet
+  general (confirmado: `fly.io` da 403 de política de red — solo llega a registries de
+  paquetes y GitHub) y el usuario no tiene terminal local disponible, así que el deploy
+  del backend corre por GitHub Actions (`.github/workflows/deploy-fly.yml`, runners de
+  GitHub sí tienen internet normal) en vez de `flyctl` manual — crea la app/volumen en
+  Fly.io si no existen, sincroniza secretos desde GitHub Actions secrets, hace
+  `flyctl deploy`. Todo lo demás (`backend/Dockerfile`, `fly.toml`,
+  `frontend/functions/api/[[path]].ts`) ya existe. Pendiente de ejecutar: el usuario
+  todavía no cargó los 4 secretos de GitHub (`FLY_API_TOKEN`, `FLY_APP_PASSWORD`,
+  `FLY_SESSION_SECRET`, `FLY_BBVA_STATEMENT_PASSWORD`, ver `DEPLOY.md`) ni corrió el
+  workflow, y el proyecto de Cloudflare Pages tampoco se ha creado. **Sin resolver de
+  verdad**: cómo subir el `finanzas.db` real (con todo lo ya importado) al volumen de
+  Fly.io sin terminal — se le presentaron 3 opciones al usuario (consola web de Fly.io
+  pegando base64 a mano, subida temporal vía GitHub Actions artifact/release, o
+  construir un endpoint HTTP autenticado de restore/upload en el propio backend) sin
+  elegir ninguna unilateralmente porque las tres tocan datos financieros reales de
+  formas distintas — ver sección 3 de `DEPLOY.md`. La opción del endpoint HTTP
+  resolvería también el pendiente de importar estados de cuenta nuevos ya desplegado
+  (mismo problema: el flujo `POST /import/{account}` asume acceso al filesystem local).
 - **Balagan, mecánica de rescate**: pregunté si "recuperar la inversión" significa
   exactamente $75,000 (valor original, Cláusulas QUINTA/SEXTA) o un monto ajustado por
   desempeño — sin confirmar todavía. No asumir ninguna de las dos en cálculos de "cuánto
