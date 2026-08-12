@@ -19,7 +19,7 @@ falta. Cualquier sesión debería leer esto antes de tocar código.
 | `backend/app/manual_data.py` | Hechos que el usuario dio directamente y que ningún estado de cuenta reporta (ej. el balance real de GBM, sacado de un screenshot de la app). Aplicado en seed, con cita de fuente igual que un parser. |
 | `backend/app/classify.py` | Detección de traspasos propios por titular/RFC (no por banco destino — ver gotcha abajo). |
 | `backend/app/seed.py` | Siembra las 9 cuentas + categorías + `manual_data`. Re-correr es seguro. |
-| `backend/app/main.py` | FastAPI: `POST /import/{account}`, `POST /classify`, `GET /accounts`, `GET /transactions`, `GET /spending-by-category`, `GET /net-worth`. |
+| `backend/app/main.py` | FastAPI: `POST /import/{account}`, `POST /classify`, `GET /accounts`, `GET /transactions`, `GET /spending-by-category`, `GET /net-worth`, `GET /monthly-summary`, `GET /savings-goal`, `GET /savings-projection`. |
 | `data/imports/<Cuenta>/` | Carpeta de aterrizaje para estados nuevos, una por institución. Nunca se commitea contenido real (ver `.gitignore`, excluye por extensión). |
 | `frontend/` | Dashboard real: React + Vite + TypeScript, consulta la API en vivo (proxy `/api` → `uvicorn` puerto 8000 vía `vite.config.ts`). Vista principal mes a mes: flujo de efectivo (ingreso/gasto/neto) y desglose de gasto por categoría del mes seleccionado, coloreado por naturaleza (Básico/Necesario/Estilo de vida). Paleta y specs de gráficas siguiendo el skill `dataviz` (`frontend/src/theme.css`), con soporte de modo oscuro y vista de tabla accesible como respaldo de cada gráfica. |
 
