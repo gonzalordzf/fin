@@ -282,11 +282,31 @@ def _compute_monthly_summary(session, currency: str) -> list[dict]:
         .all()
     )
 
+    # Fijo/variable, netted the same way categories are — a month can carry
+    # a refund inside either bucket (e.g. a fijo insurance adjustment), and
+    # classify_spend_frequency only tags real EXPENSE-kind or
+    # amount<0-uncategorized rows, so this stays consistent with
+    # total_expense above rather than double-counting transfers/income.
+    frequency_rows = (
+        session.query(month_expr, Transaction.spend_frequency, func.sum(Transaction.amount))
+        .filter(Transaction.currency == currency, Transaction.spend_frequency.isnot(None))
+        .group_by(month_expr, Transaction.spend_frequency)
+        .all()
+    )
+
     months: dict[str, dict] = {}
 
     def month_entry(month: str) -> dict:
         return months.setdefault(
-            month, {"month": month, "income": 0.0, "categories": [], "uncategorized_expense": 0.0}
+            month,
+            {
+                "month": month,
+                "income": 0.0,
+                "categories": [],
+                "uncategorized_expense": 0.0,
+                "fijo_total": 0.0,
+                "variable_total": 0.0,
+            },
         )
 
     for month, total in income_rows:
@@ -299,6 +319,10 @@ def _compute_monthly_summary(session, currency: str) -> list[dict]:
 
     for month, total in uncategorized_rows:
         month_entry(month)["uncategorized_expense"] = round(-total, 2)
+
+    for month, frequency, total in frequency_rows:
+        key = "fijo_total" if frequency.value == "fijo" else "variable_total"
+        month_entry(month)[key] = round(-total, 2)
 
     result = []
     for month in sorted(months):
