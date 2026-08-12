@@ -15,7 +15,7 @@ from sqlalchemy import func
 
 from app.classify import classify_transfers
 from app.db import get_session, init_db
-from app.importers import afore, amex, balagan, bbva, bitso, gbm, optimax, revolut, shareworks
+from app.importers import afore, amex, balagan, bbva, bbva_credit, bitso, gbm, optimax, revolut, shareworks
 from app.parsers import balagan as balagan_parser
 from app.rules import classify_merchants
 from app.models import (
@@ -45,6 +45,7 @@ DATA_IMPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "imp
 # (fn, exts) pair like every other account.
 IMPORTERS = {
     "BBVA": (bbva.import_bbva_statement, {".pdf"}),
+    "BBVA TDC": (bbva_credit.import_bbva_credit_statement, {".pdf"}),
     "AMEX": {".csv": amex.import_amex_csv, ".pdf": amex.import_amex_pdf_statement},
     "GBM": (gbm.import_gbm_statement, {".xml"}),
     "Bitso": (bitso.import_bitso_report, {".csv"}),

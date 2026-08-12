@@ -82,6 +82,33 @@ MANUAL_HOLDING_SNAPSHOTS = [
             "CLAUDE.md's abierto/sin resolver."
         ),
     },
+    {
+        # BBVA TDC's imported transaction history only covers Jul-2024
+        # onward — Ene-2023 to Jun-2024 statements use an older,
+        # structurally different template ("Tarjeta Oro BBVA": DD/MM/YY
+        # dates, separate CARGOS/ABONOS columns, no explicit +/- sign
+        # token) that parsers/bbva_credit.py doesn't parse yet, see
+        # CLAUDE.md's abierto/sin resolver. Without this anchor, the
+        # account's balance (sum of imported transactions) would read as
+        # whatever those 26 months net to on their own, not the real
+        # amount owed.
+        "account_name": "BBVA TDC",
+        "date": datetime.date(2024, 6, 4),
+        "sub_portfolio": None,
+        "market_value": -12_448.27,
+        "currency": "MXN",
+        "notes": (
+            "Opening balance anchor, sourced from the first imported "
+            "statement's own printed 'Adeudo del periodo anterior: "
+            "$12,448.27' (Jul-2024 statement, as of the 04-jun-2024 "
+            "cutoff of the preceding, unimported period) — negative here "
+            "since it's debt owed, per this project's sign convention. "
+            "Confirmed as the same ongoing credit line rather than a "
+            "different account: the last 'Tarjeta Oro BBVA' statement "
+            "before the card was reissued as 'Tarjeta Platinum BBVA' "
+            "prints the identical closing balance for the same date."
+        ),
+    },
 ]
 
 

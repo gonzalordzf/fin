@@ -8,11 +8,38 @@ time without touching import code. Re-running is safe: existing rows
 
 from app.db import get_session, init_db
 from app.manual_data import apply_manual_data
-from app.models import Account, AccountKind, Category, CategoryKind, CategoryNature
+from app.models import Account, AccountKind, Category, CategoryKind, CategoryNature, PaymentDueOffsetType
 
 ACCOUNTS: list[dict] = [
     {"name": "BBVA", "institution": "BBVA México", "kind": AccountKind.TRANSACTIONAL, "currency": "MXN"},
-    {"name": "AMEX", "institution": "American Express", "kind": AccountKind.TRANSACTIONAL, "currency": "MXN"},
+    {
+        "name": "AMEX",
+        "institution": "American Express",
+        "kind": AccountKind.TRANSACTIONAL,
+        "currency": "MXN",
+        # User-provided (2026-08-12): corte día 3, pago 15 días hábiles después.
+        "is_credit_card": True,
+        "statement_cutoff_day": 3,
+        "payment_due_offset_days": 15,
+        "payment_due_offset_type": PaymentDueOffsetType.HABIL,
+    },
+    {
+        # Real credit card statements, not the same account as "BBVA"
+        # (checking/débito) above — "TARJETA PLATINUM BBVA", statements
+        # confirm no interest/installment balance ever carried (paid in
+        # full each period through this app's history so far).
+        "name": "BBVA TDC",
+        "institution": "BBVA México",
+        "kind": AccountKind.TRANSACTIONAL,
+        "currency": "MXN",
+        # User-provided (2026-08-12): corte día 4, pago 20 días naturales
+        # después — confirmed against real statements (e.g. Ago-2026:
+        # corte 04-ago-2026, fecha límite de pago 24-ago-2026 = +20 días).
+        "is_credit_card": True,
+        "statement_cutoff_day": 4,
+        "payment_due_offset_days": 20,
+        "payment_due_offset_type": PaymentDueOffsetType.NATURAL,
+    },
     {"name": "Revolut", "institution": "Revolut", "kind": AccountKind.TRANSACTIONAL, "currency": "MXN"},
     {"name": "Bitso", "institution": "Bitso", "kind": AccountKind.INVESTMENT_FORMAL, "currency": "MXN"},
     {"name": "GBM", "institution": "GBM", "kind": AccountKind.INVESTMENT_FORMAL, "currency": "MXN"},
@@ -108,12 +135,27 @@ def seed() -> None:
     init_db()
     with get_session() as session:
         accounts_by_name: dict[str, Account] = {}
+        # Card metadata (is_credit_card, cutoff/payment terms) is code-owned
+        # structural data, not something edited by hand in the DB — unlike
+        # the rest of an existing account's row, it's safe (and necessary)
+        # to sync onto an account that was already seeded before these
+        # fields existed, not just onto newly-created ones.
+        _SYNCED_FIELDS = (
+            "is_credit_card",
+            "statement_cutoff_day",
+            "payment_due_offset_days",
+            "payment_due_offset_type",
+        )
         for spec in ACCOUNTS:
             existing = session.query(Account).filter_by(name=spec["name"]).one_or_none()
             if existing is None:
                 existing = Account(**spec)
                 session.add(existing)
                 session.flush()
+            else:
+                for field in _SYNCED_FIELDS:
+                    if field in spec:
+                        setattr(existing, field, spec[field])
             accounts_by_name[spec["name"]] = existing
 
         gbm = accounts_by_name["GBM"]

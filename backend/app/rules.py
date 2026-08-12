@@ -46,6 +46,13 @@ SELF_PAYMENT_RULES: list[tuple[str, str]] = [
     (r"PAGO TARJETA DE CREDITO", "Pago de Tarjeta de Crédito"),
     (r"AMERICAN EXPRESS \d+", "Pago de Tarjeta de Crédito"),
     (r"GRACIAS POR SU PAGO", "Pago de Tarjeta de Crédito"),
+    # BBVA TDC's own abono line for a payment made via the bbva móvil app —
+    # confirmed on real statements, e.g. "BMOVIL.PAGO TDC -$8,050.50"
+    # (abono, our sign flips it positive). This account's own printed
+    # balance-chain validation (see parsers/bbva_credit.py) already
+    # confirms these always pair off against an equal previous_balance —
+    # it's paying down the card, not income.
+    (r"BMOVIL\.?\s*PAGO\s*TDC", "Pago de Tarjeta de Crédito"),
     # A credit for a disputed/unrecognized charge is a refund, not a
     # transfer — validated: real AMEX line "CREDITO POR CARGO NO
     # RECONOCIDO".
@@ -67,7 +74,10 @@ INVESTMENT_INSTITUTION_PATTERNS: list[str] = [
     # of them since there's no word boundary between "O" and "G").
     r"GBM\b",
     r"BITSO\b",  # not yet seen in a real contribution transaction — best effort
-    r"ALLIANZ\b",  # not yet seen in a real contribution transaction — best effort
+    # Confirmed on real BBVA TDC charges ("ALLIANZ MEXICO CR"): the fixed
+    # monthly Optimax contribution, paid by credit card — not car
+    # insurance (Qualitas/ANA, which stays in Transporte, are unrelated).
+    r"ALLIANZ\b",
     r"OPTIMAX\b",  # not yet seen in a real contribution transaction — best effort
 ]
 _INVESTMENT_CATEGORY = "Inversión"
@@ -127,8 +137,16 @@ KNOWN_PERSON_RULES: list[tuple[str, str]] = [
 # sí traen espacio ("Enero 2024 Renta"), de modo que \bRENTA\b capturaba
 # solo el lado que entra y ninguno de los que sale — exactamente la
 # asimetría que hacía que 2024 reportara $1,718/mes de vivienda neta.
-# El \b final se conserva: evita machear "rentabilidad" y similares.
-RENT_PATTERNS: list[str] = [r"RENTA\b"]
+# El \b final se conserva: evita machear "rentabilidad" y similares. La
+# ausencia de \b inicial sí necesita guardia: sin ella, "RENTA" matchea
+# dentro de "CUARENTA" (encontrado en un cargo real de BBVA TDC, "REST
+# CUARENTA" — un restaurante, no renta) porque \b no exige que el carácter
+# previo sea un no-letra, solo que haya una transición letra/no-letra en
+# algún punto. El lookbehind negativo exige eso explícitamente: rechaza
+# cuando el carácter anterior es una letra (CUARENTA) pero sigue aceptando
+# cuando es un dígito (concatenación de BBVA, "0801240Renta") o un espacio
+# ("Enero 2024 Renta").
+RENT_PATTERNS: list[str] = [r"(?<![A-Za-z])RENTA\b"]
 _RENT_CATEGORY = "Vivienda"
 
 # Reglas con vigencia: (patrón, categoría, desde, hasta) — ambas fechas
@@ -485,6 +503,14 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     # aparece en el memo de renta de Ramonell ("Renta FMDO 108 603"), así
     # que es la cuota de mantenimiento del depto, no un proveedor suelto.
     (r"CONDOMIDRACO", "Vivienda"),
+    # CFE (Comisión Federal de Electricidad) — recibo de luz, confirmado en
+    # cargos reales de BBVA TDC ("CFE SUM SERV BAS MU", "CFE SUM SERV BAS
+    # CR MU"), ambos con el mismo número de tarjeta digital en el memo
+    # (domiciliado), un mes tras otro.
+    (r"\bCFE\b", "Vivienda"),
+    # Telcel — telefonía, confirmado en cargos reales de BBVA TDC
+    # ("TELCEL MEXICO CR"), recurrente mes a mes con montos similares.
+    (r"\bTELCEL\b", "Servicios y Suscripciones"),
     # Devolución del SAT ("HACIENDA TE DEVUELVE", Tesorería de la
     # Federación). Es dinero que regresa, no ingreso nuevo.
     (r"HACIENDA TE DEVUELVE", "Reembolsos"),
@@ -566,6 +592,13 @@ MERCHANT_RULES: list[tuple[str, str]] = [
     (r"DUANE READE", "Salud"),  # cadena de farmacias, Nueva York
     # Impuestos y Comisiones Bancarias
     (r"CARGO POR PAGO TARD", "Impuestos y Comisiones Bancarias"),  # cargo por pago tardío, AMEX
+    (r"PENALIZACION POR PAGO TARDIO", "Impuestos y Comisiones Bancarias"),  # BBVA TDC, mismo concepto
+    # Fila sintética que arma parsers/bbva_credit.py con Monto de intereses
+    # + comisiones + IVA cuando ese cargo nunca aparece como su propio
+    # renglón en la tabla de movimientos (confirmado: a diferencia de la
+    # penalización por pago tardío, el interés ordinario por revolvencia no
+    # se itemiza) — ver el docstring del parser.
+    (r"^Intereses y comisiones del periodo$", "Impuestos y Comisiones Bancarias"),
     # Viajes
     (r"\bMELIA\b", "Viajes"),  # cadena hotelera Meliá
     (r"SNOW\.COM/VAIL RESORTS", "Viajes"),

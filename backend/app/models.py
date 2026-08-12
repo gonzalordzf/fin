@@ -22,6 +22,26 @@ class AccountKind(str, enum.Enum):
     EQUITY_COMPENSATION = "equity_compensation"
 
 
+class PaymentDueOffsetType(str, enum.Enum):
+    """How a credit card's payment-due offset is counted from its own
+    statement's Fecha de corte — BBVA counts calendar days, AMEX counts
+    business days, and the two aren't interchangeable."""
+
+    NATURAL = "natural"
+    HABIL = "habil"
+
+
+class SpendFrequency(str, enum.Enum):
+    """Fijo/variable is a per-transaction dimension, not a category-level
+    one: 'Vivienda' holds both rent (fijo, recurring every month) and a
+    one-off home-repair purchase (variable), and 'Salud' holds both the
+    monthly psicóloga (fijo) and a random doctor visit (variable). Only
+    meaningful for EXPENSE-kind transactions; income/transfers are null."""
+
+    FIJO = "fijo"
+    VARIABLE = "variable"
+
+
 class CategoryKind(str, enum.Enum):
     EXPENSE = "expense"
     INCOME = "income"
@@ -55,6 +75,20 @@ class Account(Base):
     currency: Mapped[str] = mapped_column(default="MXN")
     parent_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"))
     notes: Mapped[str | None]
+
+    is_credit_card: Mapped[bool] = mapped_column(default=False)
+    """Distinguishes a revolving-credit account from a debit/checking one
+    within kind=TRANSACTIONAL (both AMEX and BBVA TDC are transactional,
+    same as BBVA's checking account) — replaces an earlier frontend-only
+    hardcoded name heuristic now that there are two real credit cards."""
+    statement_cutoff_day: Mapped[int | None]
+    """Day of month the statement cuts, e.g. BBVA TDC = 4. Only set for
+    credit cards — used to compute the next corte/payment dates instead of
+    hardcoding them, since they shift every period."""
+    payment_due_offset_days: Mapped[int | None]
+    """Days after cutoff the payment is due, counted per
+    payment_due_offset_type (BBVA: 20 natural; AMEX: 15 hábiles)."""
+    payment_due_offset_type: Mapped[PaymentDueOffsetType | None]
 
     parent: Mapped[Account | None] = relationship(remote_side=[id], back_populates="children")
     children: Mapped[list[Account]] = relationship(back_populates="parent")
@@ -110,6 +144,10 @@ class Transaction(Base):
     currency: Mapped[str] = mapped_column(default="MXN")
     description: Mapped[str]
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"))
+    spend_frequency: Mapped[SpendFrequency | None]
+    """Fijo (renta, luz, seguros, psicóloga...) vs variable — see
+    SpendFrequency docstring for why this is per-transaction, not
+    per-category. Only assigned for EXPENSE-kind transactions."""
     benefit_tag: Mapped[str | None]
     """AMEX-only: cashback/benefit category redeemed on this charge."""
     external_ref: Mapped[str | None]
