@@ -23,7 +23,8 @@ falta. Cualquier sesión debería leer esto antes de tocar código.
 | `backend/app/auth.py` | Gate de password de un solo usuario (sesión firmada vía `SessionMiddleware`/`itsdangerous`), fail-closed: bloquea toda ruta salvo `/auth/login` y `/auth/status`. Solo se activa (`install_auth`, llamado desde `main.py`) si `APP_PASSWORD` está seteado — en dev local nunca lo está, así que el dev local no cambia en nada. Requiere también `SESSION_SECRET` (falla el arranque si falta). Ver `DEPLOY.md`. |
 | `data/imports/<Cuenta>/` | Carpeta de aterrizaje para estados nuevos, una por institución. Nunca se commitea contenido real (ver `.gitignore`, excluye por extensión). |
 | `frontend/` | Dashboard real: React + Vite + TypeScript, consulta la API en vivo (proxy `/api` → `uvicorn` puerto 8000 vía `vite.config.ts` en dev; en producción, `frontend/functions/api/[[path]].ts` hace de proxy same-origin hacia el backend en Fly.io). Vista principal mes a mes: flujo de efectivo (ingreso/gasto/neto) y desglose de gasto por categoría del mes seleccionado, coloreado por naturaleza (Básico/Necesario/Estilo de vida). Paleta y specs de gráficas siguiendo el skill `dataviz` (`frontend/src/theme.css`), con soporte de modo oscuro y vista de tabla accesible como respaldo de cada gráfica. `AuthGate.tsx` envuelve `<App/>` en `main.tsx`: pantalla de login si el backend tiene auth activo, passthrough si no. |
-| `DEPLOY.md` | Cómo desplegar: Cloudflare Pages (frontend) + Fly.io (backend FastAPI/SQLite en volumen persistente). Comandos exactos de `flyctl`/Cloudflare — requieren las cuentas del usuario, no se pueden correr desde aquí. |
+| `DEPLOY.md` | Cómo desplegar: Cloudflare Pages (frontend) + Fly.io (backend FastAPI/SQLite en volumen persistente). Comandos exactos de `flyctl`/Cloudflare — requieren las cuentas del usuario, no se pueden correr desde aquí. **Abandonado en favor del flujo de Excel, ver más abajo** — se dejó documentado como referencia, no se borró. |
+| `backend/scripts/export_excel.py` | Regenera un `.xlsx` completo (Transacciones, Patrimonio, Resumen Mensual, Gasto por Categoría, Meta de Ahorro) desde `finanzas.db`, reusando las mismas funciones del API (`app.main`, `app.savings_goal`) en vez de reimplementar la lógica — así los números están garantizados a coincidir. Es el flujo de entrega real (ver "Flujo mensual" abajo), reemplazando el dashboard web en vivo. `python3 -m scripts.export_excel [ruta_salida]` desde `backend/`. |
 
 ## Mis cuentas
 
@@ -106,27 +107,39 @@ no copiar cifras a mano aquí; son las que regresa el endpoint.)*
    -14.41% a +7.57% (ver `app/savings_goal.py`). Optimax/Allianz (aportación recurrente
    al producto, no traspaso entre cuentas propias) NO cambió — sigue en "Inversión".
 
-## Abierto / sin resolver
+## Flujo mensual (reemplaza el dashboard web en vivo)
 
-- **Despliegue a producción**: el sandbox de Claude Code no tiene salida a internet
-  general (confirmado: `fly.io` da 403 de política de red — solo llega a registries de
-  paquetes y GitHub) y el usuario no tiene terminal local disponible, así que el deploy
-  del backend corre por GitHub Actions (`.github/workflows/deploy-fly.yml`, runners de
-  GitHub sí tienen internet normal) en vez de `flyctl` manual — crea la app/volumen en
-  Fly.io si no existen, sincroniza secretos desde GitHub Actions secrets, hace
-  `flyctl deploy`. Todo lo demás (`backend/Dockerfile`, `fly.toml`,
-  `frontend/functions/api/[[path]].ts`) ya existe. Pendiente de ejecutar: el usuario
-  todavía no cargó los 4 secretos de GitHub (`FLY_API_TOKEN`, `FLY_APP_PASSWORD`,
-  `FLY_SESSION_SECRET`, `FLY_BBVA_STATEMENT_PASSWORD`, ver `DEPLOY.md`) ni corrió el
-  workflow, y el proyecto de Cloudflare Pages tampoco se ha creado. **Sin resolver de
-  verdad**: cómo subir el `finanzas.db` real (con todo lo ya importado) al volumen de
-  Fly.io sin terminal — se le presentaron 3 opciones al usuario (consola web de Fly.io
-  pegando base64 a mano, subida temporal vía GitHub Actions artifact/release, o
-  construir un endpoint HTTP autenticado de restore/upload en el propio backend) sin
-  elegir ninguna unilateralmente porque las tres tocan datos financieros reales de
-  formas distintas — ver sección 3 de `DEPLOY.md`. La opción del endpoint HTTP
-  resolvería también el pendiente de importar estados de cuenta nuevos ya desplegado
-  (mismo problema: el flujo `POST /import/{account}` asume acceso al filesystem local).
+**Decisión 2026-08-14**: se abandonó el despliegue del dashboard web (Cloudflare Pages +
+Fly.io). Bloqueador real, no de preferencia: la computadora del usuario es de la empresa
+y no tiene permisos de terminal — ni local, ni GitHub Codespaces (se intentó) — y la
+cuenta de Fly.io del usuario pertenece a una organización con SSO forzado, que bloquea
+la creación de tokens de acceso personal desde el dashboard web (solo permite
+`flyctl tokens org <org>`, que de nuevo requiere terminal). Sin ningún camino sin
+terminal, no tiene caso mantener vivo el plan de Fly.io. `DEPLOY.md`, `fly.toml`,
+`backend/Dockerfile`, `.github/workflows/deploy-fly.yml`, `frontend/functions/api/[[path]].ts`
+y `backend/app/auth.py` se dejaron tal cual (funcionan, están probados) por si la
+situación cambia (ej. computadora personal) — no se borraron, pero no son el flujo activo.
+
+**Flujo activo**: `backend/scripts/export_excel.py` genera un `.xlsx` completo desde
+`finanzas.db`, reusando las funciones reales del API. Cada mes: el usuario sube los
+estados de cuenta nuevos a Drive → se lo dice a Claude → Claude los descarga, corre
+`POST /import/{account}` y `POST /classify` igual que siempre (nada de esto cambió,
+sigue corriendo local en la sesión de Claude Code) → corre `export_excel.py` → manda el
+`.xlsx` actualizado al usuario. Nada de hosting, nada de terminal del lado del usuario.
+
+Nota técnica: en este sandbox, `LibreOffice` (`soffice --headless`) tiene un bug real de
+hang — una segunda invocación reusando un mismo profile (el patrón que usa
+`scripts/recalc.py` del skill `xlsx` para precalcular fórmulas) se cuelga
+indefinidamente sin importar locks/env vars/sandbox flags (confirmado, no es
+config mal puesta). Verificación alterna usada en su lugar: la librería `formulas` (pip)
+evalúa las fórmulas del `.xlsx` en Python puro — 0 errores en ~60,000 celdas del export
+real, y los valores coinciden exacto con el API en vivo (Resumen Mensual, Patrimonio,
+Meta de Ahorro, todos cruzados). El archivo entregado no trae valores cacheados en las
+celdas de fórmula (Excel/Sheets los calculan solo al abrir, comportamiento estándar) —
+si se vuelve a intentar `recalc.py` en una sesión futura, ya se sabe que el patrón
+"init profile → reusar mismo profile para correr macro" cuelga en este entorno.
+
+## Abierto / sin resolver
 - **Balagan, mecánica de rescate**: pregunté si "recuperar la inversión" significa
   exactamente $75,000 (valor original, Cláusulas QUINTA/SEXTA) o un monto ajustado por
   desempeño — sin confirmar todavía. No asumir ninguna de las dos en cálculos de "cuánto
