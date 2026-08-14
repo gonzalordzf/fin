@@ -127,17 +127,36 @@ estados de cuenta nuevos a Drive → se lo dice a Claude → Claude los descarga
 sigue corriendo local en la sesión de Claude Code) → corre `export_excel.py` → manda el
 `.xlsx` actualizado al usuario. Nada de hosting, nada de terminal del lado del usuario.
 
-Nota técnica: en este sandbox, `LibreOffice` (`soffice --headless`) tiene un bug real de
-hang — una segunda invocación reusando un mismo profile (el patrón que usa
-`scripts/recalc.py` del skill `xlsx` para precalcular fórmulas) se cuelga
-indefinidamente sin importar locks/env vars/sandbox flags (confirmado, no es
-config mal puesta). Verificación alterna usada en su lugar: la librería `formulas` (pip)
-evalúa las fórmulas del `.xlsx` en Python puro — 0 errores en ~60,000 celdas del export
-real, y los valores coinciden exacto con el API en vivo (Resumen Mensual, Patrimonio,
-Meta de Ahorro, todos cruzados). El archivo entregado no trae valores cacheados en las
-celdas de fórmula (Excel/Sheets los calculan solo al abrir, comportamiento estándar) —
-si se vuelve a intentar `recalc.py` en una sesión futura, ya se sabe que el patrón
-"init profile → reusar mismo profile para correr macro" cuelga en este entorno.
+### Gotcha crítico: valores cacheados (`scripts/cache_values.py`)
+
+**`LibreOffice` es inservible en este sandbox** — no es un bug de config ni de este
+workbook: `soffice --headless --convert-to pdf` falla con "source file could not be
+loaded" hasta en un `.xlsx` trivial de 3 celdas hecho por openpyxl, y el patrón de
+`scripts/recalc.py` del skill `xlsx` (init de profile → segunda invocación reusando ese
+mismo profile para correr el macro) se cuelga indefinidamente sin importar
+locks/env vars/sandbox flags. Ambos confirmados en aislamiento. No re-investigar: usar
+`scripts/cache_values.py`.
+
+**Por qué importa**: openpyxl escribe cada celda de fórmula como
+`<c r="B5"><f>SUMIFS(...)</f><v /></c>` — la fórmula, y un valor cacheado **vacío**.
+Todo lo que lea el archivo sin evaluar fórmulas (pandas, `data_only=True`, previews, y
+sobre todo **las gráficas de Excel**) ve celdas en blanco. Esto ya causó un bug real
+entregado al usuario: las 6 gráficas del Dashboard salieron vacías porque cada celda que
+alimentaban estaba en blanco — la estructura (drawing → charts rels, series, refs) estaba
+perfecta, lo único que faltaba eran los valores.
+
+**La solución**: `scripts/cache_values.py` (`inject_cached_values`, llamado al final de
+`export_excel.py`) evalúa todas las fórmulas con la librería `formulas` (pip, Python puro)
+y las inyecta como valores cacheados post-procesando el XML del `.xlsx` directamente
+(openpyxl no puede tener fórmula y valor cacheado a la vez, así que un round-trip por su
+modelo de objetos perdería uno de los dos). Además `export_excel.py` pone
+`fullCalcOnLoad`, así que Excel/Sheets recalculan al abrir de todos modos — los valores
+cacheados son para todo lo demás. El export falla ruidosamente (`SystemExit(1)`) si
+alguna celda evalúa a error de Excel.
+
+**Cómo verificar sin poder abrir el archivo**: resolver las referencias de cada serie de
+cada gráfica contra los valores cacheados y confirmar que ninguna serie queda vacía — eso
+es lo que prueba de verdad "la gráfica va a dibujar algo", no que el chart exista.
 
 ## Abierto / sin resolver
 - **Balagan, mecánica de rescate**: pregunté si "recuperar la inversión" significa

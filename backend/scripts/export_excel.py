@@ -41,6 +41,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from app.db import get_session
 from app.main import net_worth, savings_goal, savings_projection, _compute_monthly_summary
 from app.models import Account, Category, CategoryKind, Transaction
+from scripts.cache_values import inject_cached_values
 
 FONT_NAME = "Arial"
 HEADER_FILL = PatternFill("solid", fgColor="1F3864")
@@ -733,9 +734,25 @@ def main() -> None:
     # they have to exist first) but belongs first — it's the landing view.
     wb.move_sheet("Dashboard", offset=-(len(wb.sheetnames) - 1))
     wb.active = 0
+    # Excel/Sheets recalculate everything on open regardless of the cached
+    # values written below, so the two can never disagree in a real app.
+    wb.calculation.fullCalcOnLoad = True
 
     wb.save(out_path)
-    print(f"Escrito: {out_path}")
+
+    # Not optional: without cached values every chart points at cells that
+    # read as blank, so the charts render as empty frames outside a real
+    # spreadsheet app. See scripts/cache_values.py for the full reasoning.
+    stats = inject_cached_values(out_path)
+    print(
+        f"Escrito: {out_path} "
+        f"({stats['written']}/{stats['formulas']} fórmulas con valor precalculado)"
+    )
+    if stats["errors"]:
+        print(f"ADVERTENCIA: {len(stats['errors'])} celda(s) con error de fórmula:")
+        for location in stats["errors"][:20]:
+            print(f"  {location}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
